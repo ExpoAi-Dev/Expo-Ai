@@ -1,0 +1,339 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Expoloom AI Chat</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <style>
+    :root {
+      --bg-main: #ffffff; --bg-sidebar: #f8fafc; --text-color: #000000;
+      --header-bg: #f1f5f9; --chat-item-bg: #e2e8f0; --bot-msg-bg: #e2e8f0;
+      --accent-blue: #2563eb;
+    }
+    body.dark-theme {
+      --bg-main: #0f172a; --bg-sidebar: #020617; --text-color: #ffffff;
+      --header-bg: #1e293b; --chat-item-bg: #1e293b; --bot-msg-bg: #334155;
+    }
+    body {
+      margin: 0; font-family: Arial; display: flex; height: 100vh; overflow: hidden;
+      background: var(--bg-main); color: var(--text-color); transition: 0.3s;
+    }
+    * { -webkit-tap-highlight-color: transparent; }
+
+    /* Sidebar Styles */
+    .sidebar {
+      width: 260px; background: var(--bg-sidebar); padding: 10px; display: flex;
+      flex-direction: column; height: 100vh; transition: transform 0.3s ease;
+      z-index: 20;
+    }
+    .sidebar-header { display: none; align-items: center; margin-bottom: 5px; }
+    .divider { height: 1px; background: var(--text-color); opacity: 0.3; margin: 8px 0; }
+    .recent-label { font-size: 13px; opacity: 0.7; margin: 5px 8px; }
+    .chat-list { flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 6px; padding-bottom: 50px; }
+    .chat-item { padding: 10px; background: var(--chat-item-bg); border-radius: 8px; display: flex; align-items: center; position: relative; }
+    .chat-name { flex: 1; cursor: pointer; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-size: 14px; }
+    
+    .dots { cursor: pointer; padding: 0 5px; opacity: 0.6; font-size: 18px; font-weight: bold; }
+    .chat-menu {
+      position: absolute; right: 10px; top: 35px; background: var(--header-bg);
+      border-radius: 8px; display: none; flex-direction: column; z-index: 30;
+      min-width: 110px; box-shadow: 0 4px 10px rgba(0,0,0,0.2); border: 1px solid rgba(128,128,128,0.2);
+    }
+    .chat-menu div { padding: 10px; cursor: pointer; font-size: 13px; border-bottom: 1px solid rgba(128,128,128,0.1); color: var(--text-color); }
+    .chat-menu div:last-child { border: none; color: #ef4444; }
+
+    /* Main Area Styles */
+    .main { flex: 1; display: flex; flex-direction: column; width: 100%; overflow: hidden;}
+    .header { display: flex; justify-content: space-between; align-items: center; padding: 10px; background: var(--header-bg); font-weight: bold; border-bottom: 1px solid rgba(0,0,0,0.05); position: relative; }
+    .menu-btn { font-size: 22px; cursor: pointer; display: none; }
+    .menu-btn.hide { display: none !important; }
+    .profile-btn { width: 35px; height: 35px; border-radius: 50%; background: var(--accent-blue); display: flex; align-items: center; justify-content: center; color: white; cursor: pointer; }
+    
+    .account-panel { position: absolute; top: 60px; right: 10px; background: var(--header-bg); padding: 15px; border-radius: 12px; display: none; border: 1px solid rgba(128,128,128,0.3); z-index: 100; box-shadow: 0 8px 16px rgba(0,0,0,0.2); min-width: 200px; }
+
+    .chat-box { flex: 1; overflow-y: auto; padding: 10px; display: flex; flex-direction: column; scroll-behavior: smooth; }
+    .message { margin: 10px 0; padding: 12px 16px; border-radius: 15px; max-width: 85%; word-break: break-word; line-height: 1.5; font-size: 15px; }
+    .user { background: var(--accent-blue); color: white; align-self: flex-end; border-bottom-right-radius: 2px; }
+    .bot { background: var(--bot-msg-bg); color: var(--text-color); align-self: flex-start; border-bottom-left-radius: 2px; }
+
+    /* Gemini Loading Animation */
+    .loading-container { align-self: flex-start; margin: 10px 0; width: 70%; }
+    .loading-bar {
+      height: 12px; margin: 8px 0; border-radius: 4px;
+      background: linear-gradient(90deg, #4285f4 25%, #9b72cb 50%, #d96570 75%);
+      background-size: 200% 100%;
+      animation: shimmer 1.5s infinite linear;
+      opacity: 0.6;
+    }
+    .loading-bar.short { width: 40%; }
+    .loading-bar.med { width: 85%; }
+    @keyframes shimmer {
+      0% { background-position: 200% 0; }
+      100% { background-position: -200% 0; }
+    }
+
+    /* Input Area Styles */
+    .input-container { display: flex; flex-direction: column; background: var(--bg-main); padding: 10px 10px 15px 10px; border-top: 1px solid rgba(128,128,128,0.1); }
+    .input-area { display: flex; align-items: flex-end; gap: 10px; margin-bottom: 10px; }
+    textarea { flex: 1; padding: 12px; border-radius: 12px; border: 1px solid rgba(128,128,128,0.3); background: var(--header-bg); color: var(--text-color); resize: none; max-height: 150px; outline: none; font-size: 14px; }
+    .send-btn { padding: 10px 18px; background: var(--accent-blue); border: none; border-radius: 12px; color: white; cursor: pointer; height: 44px; font-weight: bold; }
+
+    .action-row { display: flex; align-items: center; padding-left: 5px; gap: 18px; }
+    .btn-circle { width: 36px; height: 36px; border-radius: 50%; border: 1.5px solid var(--accent-blue); display: flex; align-items: center; justify-content: center; cursor: pointer; }
+    .icon-svg { width: 19px; height: 19px; stroke: var(--accent-blue); stroke-width: 2.2; fill: none; }
+    .flex-spacer { flex-grow: 1; }
+    .modes-btn { padding: 12px 24px; border-radius: 999px; border: 1px solid rgba(128,128,128,0.3); background: var(--header-bg); color: var(--text-color); font-size: 14px; font-weight: 500; cursor: pointer; }
+
+    .bottom-bar { display: flex; justify-content: space-between; align-items: center; }
+    .settings-btn { padding: 10px; background: #334155; border-radius: 50%; cursor: pointer; color: white; }
+    .new-chat { width: 90px; margin: 5px 0 20px auto; padding: 12px; background: var(--accent-blue); border-radius: 999px; text-align: center; cursor: pointer; color: white; font-weight: bold; }
+
+    .settings-panel { position: fixed; bottom: -100%; left: 0; right: 0; height: 85%; background: #EEEEEE; color: black; border-top-left-radius: 25px; border-top-right-radius: 25px; transition: bottom 0.3s ease; z-index: 100; padding: 25px; box-shadow: 0 -5px 20px rgba(0,0,0,0.3); }
+    .settings-panel.open { bottom: 0; }
+
+    @media (max-width: 768px) {
+      .sidebar { position: absolute; transform: translateX(-100%); }
+      .sidebar.open { transform: translateX(0); }
+      .menu-btn { display: block; }
+      .sidebar-header { display: flex; }
+    }
+  </style>
+</head>
+
+<body class="dark-theme"> 
+<div id="sidebar" class="sidebar">
+  <div class="sidebar-header"><b>Expoloom AI</b></div>
+  <div class="divider"></div>
+  <div class="recent-label">Recent Chats</div>
+  <div id="chatList" class="chat-list"></div>
+  <div class="bottom-bar">
+    <div class="settings-btn" onclick="openSettings()">⚙️</div>
+    <div class="new-chat" onclick="createNewChat()">+ New</div>
+  </div>
+</div>
+
+<div class="main">
+  <div class="header">
+    <div id="menuBtn" class="menu-btn" onclick="toggleMenu()">☰</div>
+    Expoloom AI
+    <div class="profile-btn" onclick="toggleAccount(event)">👤</div>
+    
+    <div id="accountPanel" class="account-panel">
+      <p style="margin-top:0;">👤 <b>Account</b></p>
+      <div class="divider" style="background:gray; opacity:0.2;"></div>
+      <p style="font-size:13px; opacity:0.8; margin-bottom:5px;">User ID: exp_012</p>
+      <p style="font-size:12px; opacity:0.6;">user@expoloom.com</p>
+    </div>
+  </div>
+
+  <div id="chat" class="chat-box"></div>
+
+  <div class="input-container">
+    <div class="input-area">
+      <textarea id="input" rows="1" placeholder="Ask anything..." oninput="autoExpand(this)"></textarea>
+      <button class="send-btn" id="sendBtn" onclick="askAI()">Send</button>
+    </div>
+    <div class="action-row">
+      <div class="btn-circle" onclick="createNewChat()">
+        <svg class="icon-svg" viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+      </div>
+      <div class="btn-circle">
+        <svg class="icon-svg" viewBox="0 0 24 24" style="transform: rotate(90deg);"><line x1="4" y1="9" x2="20" y2="9"></line><line x1="4" y1="15" x2="20" y2="15"></line><circle cx="8" cy="9" r="2"></circle><circle cx="16" cy="15" r="2"></circle></svg>
+      </div>
+      <div class="flex-spacer"></div>
+      <button class="modes-btn">Modes</button>
+    </div>
+  </div>
+</div>
+
+<div id="settingsPanel" class="settings-panel">
+  <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
+    <b style="font-size: 22px;">Settings</b>
+    <button onclick="closeSettings()" style="background:#ef4444; border:none; padding:10px; border-radius:50%; color:white;">✕</button>
+  </div>
+  <input type="checkbox" id="darkModeCheckbox" checked onchange="toggleDarkMode()"> Dark Mode
+</div>
+
+<script>
+const API_KEY = "Need To Put Api Ke"; 
+
+let chats = JSON.parse(localStorage.getItem("chats")) || {};
+let currentChat = localStorage.getItem("lastChatId") || null;
+
+function autoExpand(t) { t.style.height = 'auto'; t.style.height = t.scrollHeight + 'px'; }
+function toggleDarkMode() {
+  const isDark = document.getElementById("darkModeCheckbox").checked;
+  document.body.classList.toggle("dark-theme", isDark);
+}
+function toggleMenu() {
+  const s = document.getElementById("sidebar");
+  const m = document.getElementById("menuBtn");
+  s.classList.toggle("open");
+  m.classList.toggle("hide", s.classList.contains("open"));
+}
+
+let startX = 0;
+document.getElementById("sidebar").addEventListener("touchstart", e => startX = e.touches[0].clientX);
+document.getElementById("sidebar").addEventListener("touchmove", e => {
+  if (startX - e.touches[0].clientX > 60) { 
+    document.getElementById("sidebar").classList.remove("open");
+    document.getElementById("menuBtn").classList.remove("hide");
+  }
+});
+
+function openSettings() { document.getElementById("settingsPanel").classList.add("open"); }
+function closeSettings() { document.getElementById("settingsPanel").classList.remove("open"); }
+
+function toggleAccount(e) {
+  e.stopPropagation();
+  const p = document.getElementById("accountPanel");
+  p.style.display = (p.style.display === "block") ? "none" : "block";
+}
+
+function save() { 
+  localStorage.setItem("chats", JSON.stringify(chats)); 
+  localStorage.setItem("lastChatId", currentChat);
+}
+
+function createNewChat() {
+  const id = "Chat_" + Date.now();
+  chats[id] = { name: "New Chat", messages: [], pinned: false };
+  currentChat = id; 
+  save(); renderChats(); renderMessages();
+}
+
+function renderChats() {
+  const list = document.getElementById("chatList");
+  list.innerHTML = "";
+  const sorted = Object.entries(chats).sort((a, b) => b[1].pinned - a[1].pinned);
+  sorted.forEach(([id, chat]) => {
+    const div = document.createElement("div");
+    div.className = "chat-item";
+    div.innerHTML = `
+      <div class="chat-name" onclick="switchChat('${id}')">${chat.pinned ? '📌 ' : ''}${chat.name}</div>
+      <div class="dots" onclick="openChatMenu(event, '${id}')">⋮</div>
+      <div id="menu-${id}" class="chat-menu">
+        <div onclick="togglePin('${id}')">${chat.pinned ? 'Unpin' : 'Pin'}</div>
+        <div onclick="renameChat('${id}')">Rename</div>
+        <div onclick="deleteChat('${id}')">Delete</div>
+      </div>
+    `;
+    list.appendChild(div);
+  });
+}
+
+function switchChat(id) { currentChat = id; renderMessages(); save(); if(window.innerWidth < 768) toggleMenu(); }
+function openChatMenu(e, id) {
+  e.stopPropagation();
+  document.querySelectorAll('.chat-menu').forEach(m => m.style.display = 'none');
+  const menu = document.getElementById(`menu-${id}`);
+  if(menu) menu.style.display = 'flex';
+}
+function togglePin(id) { chats[id].pinned = !chats[id].pinned; save(); renderChats(); }
+function renameChat(id) {
+  const newName = prompt("Enter new name:", chats[id].name);
+  if (newName) { chats[id].name = newName; save(); renderChats(); }
+}
+function deleteChat(id) {
+  if (confirm("Delete this chat?")) {
+    delete chats[id];
+    if (currentChat === id) currentChat = Object.keys(chats)[0] || null;
+    save(); renderChats(); renderMessages();
+  }
+}
+
+function renderMessages() {
+  const box = document.getElementById("chat");
+  box.innerHTML = "";
+  if (!currentChat || !chats[currentChat]) return;
+  chats[currentChat].messages.forEach(msg => {
+    const div = document.createElement("div");
+    div.className = "message " + (msg.role === "user" ? "user" : "bot");
+    div.innerHTML = msg.parts[0].text.replace(/\n/g, '<br>');
+    box.appendChild(div);
+  });
+  box.scrollTop = box.scrollHeight;
+}
+
+function showLoading() {
+  const box = document.getElementById("chat");
+  const loader = document.createElement("div");
+  loader.id = "gemini-loader";
+  loader.className = "loading-container";
+  loader.innerHTML = `
+    <div class="loading-bar"></div>
+    <div class="loading-bar med"></div>
+    <div class="loading-bar short"></div>
+  `;
+  box.appendChild(loader);
+  box.scrollTop = box.scrollHeight;
+}
+
+function removeLoading() {
+  const loader = document.getElementById("gemini-loader");
+  if(loader) loader.remove();
+}
+
+async function askAI() {
+  const input = document.getElementById("input");
+  const msgText = input.value.trim();
+  if (!msgText || !currentChat) return;
+
+  chats[currentChat].messages.push({ role: "user", parts: [{ text: msgText }] });
+  renderMessages();
+  input.value = "";
+  input.style.height = "auto";
+  
+  showLoading();
+
+  const apiOptions = [
+    "https://generativelanguage.googleapis.com/v1beta/models/gemini-3-flash:generateContent",
+    "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent"
+  ];
+
+  let success = false;
+  let lastError = "";
+
+  for (let url of apiOptions) {
+    try {
+      const response = await fetch(`${url}?key=${API_KEY}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ contents: chats[currentChat].messages })
+      });
+
+      const data = await response.json();
+      
+      if (response.ok && data.candidates) {
+          removeLoading();
+          chats[currentChat].messages.push(data.candidates[0].content);
+          if(chats[currentChat].messages.length === 2) chats[currentChat].name = msgText.substring(0, 20);
+          success = true;
+          break; 
+      } else {
+          lastError = data.error ? data.error.message : "Service busy";
+      }
+    } catch (e) { lastError = "Network error"; }
+  }
+
+  if (!success) {
+    removeLoading();
+    const friendlyError = lastError.includes("high demand") 
+      ? "Google's servers are busy. Please wait 10 seconds and try again." 
+      : "Error: " + lastError;
+    chats[currentChat].messages.push({ role: "model", parts: [{ text: friendlyError }] });
+  }
+
+  save(); renderMessages(); renderChats();
+}
+
+window.onclick = () => {
+  document.querySelectorAll('.chat-menu').forEach(m => m.style.display = 'none');
+  const ap = document.getElementById("accountPanel");
+  if (ap) ap.style.display = "none";
+};
+
+if(!currentChat || !chats[currentChat]) createNewChat();
+else { renderChats(); renderMessages(); }
+</script>
+</body>
+</html>
