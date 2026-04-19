@@ -45,7 +45,6 @@
     .main { flex: 1; display: flex; flex-direction: column; width: 100%; overflow: hidden;}
     .header { display: flex; justify-content: space-between; align-items: center; padding: 10px; background: var(--header-bg); font-weight: bold; border-bottom: 1px solid rgba(0,0,0,0.05); position: relative; }
     .menu-btn { font-size: 22px; cursor: pointer; display: none; }
-    .menu-btn.hide { display: none !important; }
     .profile-btn { width: 35px; height: 35px; border-radius: 50%; background: var(--accent-blue); display: flex; align-items: center; justify-content: center; color: white; cursor: pointer; }
     
     .account-panel { position: absolute; top: 60px; right: 10px; background: var(--header-bg); padding: 15px; border-radius: 12px; display: none; border: 1px solid rgba(128,128,128,0.3); z-index: 100; box-shadow: 0 8px 16px rgba(0,0,0,0.2); min-width: 200px; }
@@ -55,7 +54,7 @@
     .user { background: var(--accent-blue); color: white; align-self: flex-end; border-bottom-right-radius: 2px; }
     .bot { background: var(--bot-msg-bg); color: var(--text-color); align-self: flex-start; border-bottom-left-radius: 2px; }
 
-    /* Gemini Loading Animation */
+    /* Loading Animation */
     .loading-container { align-self: flex-start; margin: 10px 0; width: 70%; }
     .loading-bar {
       height: 12px; margin: 8px 0; border-radius: 4px;
@@ -71,7 +70,7 @@
       100% { background-position: -200% 0; }
     }
 
-    /* Input Area Styles */
+    /* Input Area */
     .input-container { display: flex; flex-direction: column; background: var(--bg-main); padding: 10px 10px 15px 10px; border-top: 1px solid rgba(128,128,128,0.1); }
     .input-area { display: flex; align-items: flex-end; gap: 10px; margin-bottom: 10px; }
     textarea { flex: 1; padding: 12px; border-radius: 12px; border: 1px solid rgba(128,128,128,0.3); background: var(--header-bg); color: var(--text-color); resize: none; max-height: 150px; outline: none; font-size: 14px; }
@@ -154,8 +153,6 @@
 </div>
 
 <script>
-// NOTE: API_KEY is now handled safely by Netlify Functions!
-
 let chats = JSON.parse(localStorage.getItem("chats")) || {};
 let currentChat = localStorage.getItem("lastChatId") || null;
 
@@ -164,21 +161,27 @@ function toggleDarkMode() {
   const isDark = document.getElementById("darkModeCheckbox").checked;
   document.body.classList.toggle("dark-theme", isDark);
 }
+
+// --- Menu Toggle and Swipe Logic ---
 function toggleMenu() {
   const s = document.getElementById("sidebar");
   const m = document.getElementById("menuBtn");
   s.classList.toggle("open");
-  m.classList.toggle("hide", s.classList.contains("open"));
+  if(m) m.style.display = s.classList.contains("open") ? "none" : "block";
 }
 
 let startX = 0;
-document.getElementById("sidebar").addEventListener("touchstart", e => startX = e.touches[0].clientX);
-document.getElementById("sidebar").addEventListener("touchmove", e => {
+const sidebarEl = document.getElementById("sidebar");
+const menuBtnEl = document.getElementById("menuBtn");
+
+sidebarEl.addEventListener("touchstart", e => startX = e.touches[0].clientX);
+sidebarEl.addEventListener("touchmove", e => {
   if (startX - e.touches[0].clientX > 60) { 
-    document.getElementById("sidebar").classList.remove("open");
-    document.getElementById("menuBtn").classList.remove("hide");
+    sidebarEl.classList.remove("open");
+    if(menuBtnEl) menuBtnEl.style.display = "block";
   }
 });
+// ------------------------------------
 
 function openSettings() { document.getElementById("settingsPanel").classList.add("open"); }
 function closeSettings() { document.getElementById("settingsPanel").classList.remove("open"); }
@@ -248,7 +251,8 @@ function renderMessages() {
   chats[currentChat].messages.forEach(msg => {
     const div = document.createElement("div");
     div.className = "message " + (msg.role === "user" ? "user" : "bot");
-    div.innerHTML = msg.parts[0].text.replace(/\n/g, '<br>');
+    const text = (msg.parts && msg.parts[0]) ? msg.parts[0].text : "";
+    div.innerHTML = text.replace(/\n/g, '<br>');
     box.appendChild(div);
   });
   box.scrollTop = box.scrollHeight;
@@ -259,11 +263,7 @@ function showLoading() {
   const loader = document.createElement("div");
   loader.id = "gemini-loader";
   loader.className = "loading-container";
-  loader.innerHTML = `
-    <div class="loading-bar"></div>
-    <div class="loading-bar med"></div>
-    <div class="loading-bar short"></div>
-  `;
+  loader.innerHTML = `<div class="loading-bar"></div><div class="loading-bar med"></div><div class="loading-bar short"></div>`;
   box.appendChild(loader);
   box.scrollTop = box.scrollHeight;
 }
@@ -286,7 +286,6 @@ async function askAI() {
   showLoading();
 
   try {
-    // Calling the Netlify function instead of Google directly
     const response = await fetch("/.netlify/functions/chat", {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -296,15 +295,16 @@ async function askAI() {
     const data = await response.json();
     removeLoading();
 
-    if (response.ok && data.candidates) {
+    if (response.ok && data.candidates && data.candidates[0].content) {
         chats[currentChat].messages.push(data.candidates[0].content);
-        if(chats[currentChat].messages.length === 2) chats[currentChat].name = msgText.substring(0, 20);
+        if(chats[currentChat].messages.length === 2) chats[currentChat].name = msgText.substring(0, 20) + "...";
     } else {
-        throw new Error(data.error || "The AI is currently connecting...");
+        const errorDetail = data.error ? (data.error.message || JSON.stringify(data.error)) : "AI currently offline.";
+        throw new Error(errorDetail);
     }
   } catch (e) {
     removeLoading();
-    chats[currentChat].messages.push({ role: "model", parts: [{ text: "Error: " + e.message }] });
+    chats[currentChat].messages.push({ role: "model", parts: [{ text: "⚠️ Error: " + e.message }] });
   }
 
   save(); renderMessages(); renderChats();
@@ -320,4 +320,5 @@ if(!currentChat || !chats[currentChat]) createNewChat();
 else { renderChats(); renderMessages(); }
 </script>
 </body>
-</html>
+    </html>
+        
