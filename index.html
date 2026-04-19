@@ -154,7 +154,7 @@
 </div>
 
 <script>
-const API_KEY = "Need To Put Api Ke"; 
+// NOTE: API_KEY is now handled safely by Netlify Functions!
 
 let chats = JSON.parse(localStorage.getItem("chats")) || {};
 let currentChat = localStorage.getItem("lastChatId") || null;
@@ -285,42 +285,26 @@ async function askAI() {
   
   showLoading();
 
-  const apiOptions = [
-    "https://generativelanguage.googleapis.com/v1beta/models/gemini-3-flash:generateContent",
-    "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent"
-  ];
+  try {
+    // Calling the Netlify function instead of Google directly
+    const response = await fetch("/.netlify/functions/chat", {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ messages: chats[currentChat].messages })
+    });
 
-  let success = false;
-  let lastError = "";
-
-  for (let url of apiOptions) {
-    try {
-      const response = await fetch(`${url}?key=${API_KEY}`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ contents: chats[currentChat].messages })
-      });
-
-      const data = await response.json();
-      
-      if (response.ok && data.candidates) {
-          removeLoading();
-          chats[currentChat].messages.push(data.candidates[0].content);
-          if(chats[currentChat].messages.length === 2) chats[currentChat].name = msgText.substring(0, 20);
-          success = true;
-          break; 
-      } else {
-          lastError = data.error ? data.error.message : "Service busy";
-      }
-    } catch (e) { lastError = "Network error"; }
-  }
-
-  if (!success) {
+    const data = await response.json();
     removeLoading();
-    const friendlyError = lastError.includes("high demand") 
-      ? "Google's servers are busy. Please wait 10 seconds and try again." 
-      : "Error: " + lastError;
-    chats[currentChat].messages.push({ role: "model", parts: [{ text: friendlyError }] });
+
+    if (response.ok && data.candidates) {
+        chats[currentChat].messages.push(data.candidates[0].content);
+        if(chats[currentChat].messages.length === 2) chats[currentChat].name = msgText.substring(0, 20);
+    } else {
+        throw new Error(data.error || "The AI is currently connecting...");
+    }
+  } catch (e) {
+    removeLoading();
+    chats[currentChat].messages.push({ role: "model", parts: [{ text: "Error: " + e.message }] });
   }
 
   save(); renderMessages(); renderChats();
