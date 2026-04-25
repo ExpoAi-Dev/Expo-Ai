@@ -8,10 +8,12 @@
       --bg-main: #ffffff; --bg-sidebar: #f8fafc; --text-color: #000000;
       --header-bg: #f1f5f9; --chat-item-bg: #e2e8f0; --bot-msg-bg: #e2e8f0;
       --accent-blue: #2563eb;
+      --chip-bg: rgba(37, 99, 235, 0.12);
     }
     body.dark-theme {
       --bg-main: #0f172a; --bg-sidebar: #020617; --text-color: #ffffff;
       --header-bg: #1e293b; --chat-item-bg: #1e293b; --bot-msg-bg: #334155;
+      --chip-bg: rgba(59, 130, 246, 0.2);
     }
     body {
       margin: 0; font-family: Arial; display: flex; height: 100vh; overflow: hidden;
@@ -29,7 +31,11 @@
     .divider { height: 1px; background: var(--text-color); opacity: 0.3; margin: 8px 0; }
     .recent-label { font-size: 13px; opacity: 0.7; margin: 5px 8px; }
     .chat-list { flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 6px; padding-bottom: 50px; }
-    .chat-item { padding: 10px; background: var(--chat-item-bg); border-radius: 8px; display: flex; align-items: center; position: relative; }
+    
+    .chat-item { padding: 10px; background: transparent; border-radius: 8px; display: flex; align-items: center; position: relative; transition: 0.2s; }
+    .chat-item.active { background: var(--chip-bg); border: 1px solid rgba(37, 99, 235, 0.2); }
+    .chat-item.active .chat-name { color: var(--accent-blue); font-weight: bold; }
+
     .chat-name { flex: 1; cursor: pointer; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-size: 14px; }
     
     .dots { cursor: pointer; padding: 0 5px; opacity: 0.6; font-size: 18px; font-weight: bold; }
@@ -54,7 +60,6 @@
     .user { background: var(--accent-blue); color: white; align-self: flex-end; border-bottom-right-radius: 2px; }
     .bot { background: var(--bot-msg-bg); color: var(--text-color); align-self: flex-start; border-bottom-left-radius: 2px; }
 
-    /* Loading Animation */
     .loading-container { align-self: flex-start; margin: 10px 0; width: 70%; }
     .loading-bar {
       height: 12px; margin: 8px 0; border-radius: 4px;
@@ -63,28 +68,71 @@
       animation: shimmer 1.5s infinite linear;
       opacity: 0.6;
     }
-    .loading-bar.short { width: 40%; }
-    .loading-bar.med { width: 85%; }
-    @keyframes shimmer {
-      0% { background-position: 200% 0; }
-      100% { background-position: -200% 0; }
+    @keyframes shimmer { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
+
+    .input-container { 
+      display: flex; 
+      flex-direction: column; 
+      background: var(--header-bg);
+      padding: 15px 15px 20px 15px; 
+      border-top: 1px solid rgba(128,128,128,0.1); 
+      border-top-left-radius: 28px;
+      border-top-right-radius: 28px;
+      box-shadow: 0 -4px 15px rgba(0,0,0,0.1);
     }
+    
+    .attachment-preview {
+      display: none; align-items: center; background: var(--chip-bg); padding: 8px 12px;
+      border-radius: 10px; margin-bottom: 8px; width: fit-content; border: 1px solid var(--accent-blue); gap: 8px;
+    }
+    .attachment-preview.active { display: flex; }
+    .preview-text { font-size: 13px; color: var(--text-color); max-width: 150px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .remove-attachment { cursor: pointer; color: #ef4444; font-weight: bold; padding: 0 4px; }
 
-    /* Input Area */
-    .input-container { display: flex; flex-direction: column; background: var(--bg-main); padding: 10px 10px 15px 10px; border-top: 1px solid rgba(128,128,128,0.1); }
     .input-area { display: flex; align-items: flex-end; gap: 10px; margin-bottom: 10px; }
-    textarea { flex: 1; padding: 12px; border-radius: 12px; border: 1px solid rgba(128,128,128,0.3); background: var(--header-bg); color: var(--text-color); resize: none; max-height: 150px; outline: none; font-size: 14px; }
-    .send-btn { padding: 10px 18px; background: var(--accent-blue); border: none; border-radius: 12px; color: white; cursor: pointer; height: 44px; font-weight: bold; }
+    textarea { 
+      flex: 1; padding: 12px; border-radius: 18px;
+      border: 1px solid rgba(128,128,128,0.3); background: var(--bg-main); 
+      color: var(--text-color); resize: none; max-height: 150px; outline: none; font-size: 14px; 
+    }
+    .send-btn { padding: 10px 18px; background: var(--accent-blue); border: none; border-radius: 18px; color: white; cursor: pointer; height: 44px; font-weight: bold; }
 
-    .action-row { display: flex; align-items: center; padding-left: 5px; gap: 18px; }
-    .btn-circle { width: 36px; height: 36px; border-radius: 50%; border: 1.5px solid var(--accent-blue); display: flex; align-items: center; justify-content: center; cursor: pointer; }
+    .action-row { display: flex; align-items: center; padding-left: 5px; gap: 12px; }
+    .btn-circle { width: 36px; height: 36px; border-radius: 50%; border: 1.5px solid var(--accent-blue); display: flex; align-items: center; justify-content: center; cursor: pointer; transition: 0.2s; }
     .icon-svg { width: 19px; height: 19px; stroke: var(--accent-blue); stroke-width: 2.2; fill: none; }
-    .flex-spacer { flex-grow: 1; }
-    .modes-btn { padding: 12px 24px; border-radius: 999px; border: 1px solid rgba(128,128,128,0.3); background: var(--header-bg); color: var(--text-color); font-size: 14px; font-weight: 500; cursor: pointer; }
 
-    .bottom-bar { display: flex; justify-content: space-between; align-items: center; }
+    .option-chip {
+      display: none; align-items: center; gap: 8px; background: var(--chip-bg);
+      padding: 0 12px; border-radius: 999px; cursor: pointer; height: 36px;
+      border: 1.5px solid var(--accent-blue);
+    }
+    .option-chip.active { display: flex; }
+    .chip-icon { width: 18px; height: 18px; stroke: var(--accent-blue); stroke-width: 2; fill: none; }
+    .chip-close { font-size: 16px; color: var(--accent-blue); font-weight: bold; margin-left: 4px; }
+
+    .flex-spacer { flex-grow: 1; }
+    .modes-btn { padding: 12px 24px; border-radius: 999px; border: 1px solid rgba(128,128,128,0.3); background: var(--bg-main); color: var(--text-color); font-size: 14px; font-weight: 500; cursor: pointer; }
+
+    @keyframes pulse {
+      0% { box-shadow: 0 0 0 0 rgba(37, 99, 235, 0.4); }
+      70% { box-shadow: 0 0 0 10px rgba(37, 99, 235, 0); }
+      100% { box-shadow: 0 0 0 0 rgba(37, 99, 235, 0); }
+    }
+    .btn-circle.listening { background: rgba(37, 99, 235, 0.2); animation: pulse 1.5s infinite; }
+
+    .bottom-bar { display: flex; justify-content: space-between; align-items: center; padding-bottom: 15px; }
     .settings-btn { padding: 10px; background: #334155; border-radius: 50%; cursor: pointer; color: white; }
-    .new-chat { width: 90px; margin: 5px 0 20px auto; padding: 12px; background: var(--accent-blue); border-radius: 999px; text-align: center; cursor: pointer; color: white; font-weight: bold; }
+    .new-chat { width: 90px; margin: 5px 0 10px auto; padding: 12px; background: var(--accent-blue); border-radius: 999px; text-align: center; cursor: pointer; color: white; font-weight: bold; }
+
+    #sheetOverlay, #optionsOverlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.4); display: none; z-index: 1000; }
+    .modes-sheet, .options-sheet { position: fixed; bottom: -100%; left: 0; right: 0; background: var(--header-bg); border-top-left-radius: 25px; border-top-right-radius: 25px; transition: bottom 0.3s cubic-bezier(0.4, 0, 0.2, 1); z-index: 1001; padding-bottom: 40px; box-shadow: 0 -5px 15px rgba(0,0,0,0.2); }
+    .modes-sheet.open, .options-sheet.open { bottom: 0; }
+    .sheet-handle-area { width: 100%; padding: 15px 0; cursor: grab; }
+    .sheet-handle { width: 40px; height: 5px; background: rgba(128,128,128,0.4); border-radius: 10px; margin: 0 auto; }
+    .mode-option { display: flex; justify-content: space-between; align-items: center; padding: 15px 25px; cursor: pointer; color: var(--text-color); }
+    .mode-option.active { background: rgba(128,128,128,0.1); }
+    .check-mark { color: var(--accent-blue); font-weight: bold; font-size: 20px; display: none; }
+    .mode-option.active .check-mark { display: block; }
 
     .settings-panel { position: fixed; bottom: -100%; left: 0; right: 0; height: 85%; background: #EEEEEE; color: black; border-top-left-radius: 25px; border-top-right-radius: 25px; transition: bottom 0.3s ease; z-index: 100; padding: 25px; box-shadow: 0 -5px 20px rgba(0,0,0,0.3); }
     .settings-panel.open { bottom: 0; }
@@ -99,6 +147,49 @@
 </head>
 
 <body class="dark-theme"> 
+
+<div id="sheetOverlay" onclick="closeModes()"></div>
+<div id="modesSheet" class="modes-sheet">
+  <div class="sheet-handle-area" id="sheetHandle">
+    <div class="sheet-handle"></div>
+  </div>
+  <div class="mode-option active" id="opt-ultrafast" onclick="setMode('ultrafast')">
+    <div><b>Ultra Fast</b><br><small style="opacity:0.6;">Instant responses</small></div>
+    <div class="check-mark">✓</div>
+  </div>
+  <div class="mode-option" id="opt-fast" onclick="setMode('fast')">
+    <div><b>Fast</b><br><small style="opacity:0.6;">Balanced speed</small></div>
+    <div class="check-mark">✓</div>
+  </div>
+  <div class="mode-option" id="opt-thinking" onclick="setMode('thinking')">
+    <div><b>Thinking</b><br><small style="opacity:0.6;">Deep analysis</small></div>
+    <div class="check-mark">✓</div>
+  </div>
+  <div class="mode-option" id="opt-coder" onclick="setMode('coder')">
+    <div><b>Coder</b><br><small style="opacity:0.6;">Optimized for programming</small></div>
+    <div class="check-mark">✓</div>
+  </div>
+  <div class="mode-option" id="opt-pro" onclick="setMode('pro')">
+    <div><b>Pro</b><br><small style="opacity:0.6;">Maximum intelligence</small></div>
+    <div class="check-mark">✓</div>
+  </div>
+</div>
+
+<div id="optionsOverlay" onclick="closeOptions()"></div>
+<div id="optionsSheet" class="options-sheet">
+  <div class="sheet-handle-area" id="optionsHandle">
+    <div class="sheet-handle"></div>
+  </div>
+  <div class="mode-option" onclick="setSpecialOption('image_gen')">
+    <div><b>Image Generation</b><br><small style="opacity:0.6;">Create visual assets</small></div>
+    <div class="check-mark">✓</div>
+  </div>
+  <div class="mode-option" onclick="setSpecialOption('deep_thinking')">
+    <div><b>Deep Thinking</b><br><small style="opacity:0.6;">Advanced problem solving</small></div>
+    <div class="check-mark">✓</div>
+  </div>
+</div>
+
 <div id="sidebar" class="sidebar">
   <div class="sidebar-header"><b>Expoloom AI</b></div>
   <div class="divider"></div>
@@ -127,19 +218,43 @@
   <div id="chat" class="chat-box"></div>
 
   <div class="input-container">
+    <div id="filePreview" class="attachment-preview">
+      <span style="font-size: 16px;">📎</span>
+      <span id="fileNameDisplay" class="preview-text"></span>
+      <span class="remove-attachment" onclick="clearAttachment()">✕</span>
+    </div>
+
     <div class="input-area">
       <textarea id="input" rows="1" placeholder="Ask anything..." oninput="autoExpand(this)"></textarea>
       <button class="send-btn" id="sendBtn" onclick="askAI()">Send</button>
     </div>
     <div class="action-row">
-      <div class="btn-circle" onclick="createNewChat()">
+      <input type="file" id="fileInput" style="display: none;" onchange="handleFileUpload(this)">
+      <div class="btn-circle" onclick="document.getElementById('fileInput').click()">
         <svg class="icon-svg" viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
       </div>
-      <div class="btn-circle">
-        <svg class="icon-svg" viewBox="0 0 24 24" style="transform: rotate(90deg);"><line x1="4" y1="9" x2="20" y2="9"></line><line x1="4" y1="15" x2="20" y2="15"></line><circle cx="8" cy="9" r="2"></circle><circle cx="16" cy="15" r="2"></circle></svg>
+
+      <div id="standardOptionBtn" class="btn-circle" onclick="openOptions()" style="transform: rotate(90deg);">
+        <svg class="icon-svg" viewBox="0 0 24 24" style="stroke: var(--accent-blue); fill: var(--accent-blue);">
+          <circle cx="8" cy="18" r="2.5"></circle>
+          <line x1="8" y1="16" x2="8" y2="4" stroke-width="2"></line>
+          <circle cx="16" cy="6" r="2.5"></circle>
+          <line x1="16" y1="8" x2="16" y2="20" stroke-width="2"></line>
+        </svg>
       </div>
+
+      <div id="optionChip" class="option-chip" onclick="deselectSpecial()">
+        <span id="chipIconContainer"></span>
+        <span class="chip-close">✕</span>
+      </div>
+
       <div class="flex-spacer"></div>
-      <button class="modes-btn">Modes</button>
+
+      <div class="btn-circle" id="micBtn" onclick="toggleVoice()">
+        <svg class="icon-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"></path><path d="M19 10v2a7 7 0 0 1-14 0v-2"></path><line x1="12" y1="19" x2="12" y2="23"></line><line x1="8" y1="23" x2="16" y2="23"></line></svg>
+      </div>
+
+      <button class="modes-btn" id="modeBtn" onclick="openModes()">Ultra Fast</button>
     </div>
   </div>
 </div>
@@ -155,170 +270,228 @@
 <script>
 let chats = JSON.parse(localStorage.getItem("chats")) || {};
 let currentChat = localStorage.getItem("lastChatId") || null;
+let currentMode = "ultrafast"; 
+let activeSpecial = null;
+let pendingFile = null;
 
-function autoExpand(t) { t.style.height = 'auto'; t.style.height = t.scrollHeight + 'px'; }
-function toggleDarkMode() {
-  const isDark = document.getElementById("darkModeCheckbox").checked;
-  document.body.classList.toggle("dark-theme", isDark);
-}
-
-// --- Menu Toggle and Swipe Logic ---
-function toggleMenu() {
-  const s = document.getElementById("sidebar");
-  const m = document.getElementById("menuBtn");
-  s.classList.toggle("open");
-  if(m) m.style.display = s.classList.contains("open") ? "none" : "block";
-}
-
-let startX = 0;
-const sidebarEl = document.getElementById("sidebar");
-const menuBtnEl = document.getElementById("menuBtn");
-
-sidebarEl.addEventListener("touchstart", e => startX = e.touches[0].clientX);
-sidebarEl.addEventListener("touchmove", e => {
-  if (startX - e.touches[0].clientX > 60) { 
-    sidebarEl.classList.remove("open");
-    if(menuBtnEl) menuBtnEl.style.display = "block";
-  }
+const sidebar = document.getElementById("sidebar");
+let sideStartX = 0;
+sidebar.addEventListener('touchstart', e => sideStartX = e.touches[0].clientX);
+sidebar.addEventListener('touchmove', e => {
+    if (sideStartX - e.touches[0].clientX > 60 && sidebar.classList.contains("open")) toggleMenu();
 });
-// ------------------------------------
 
+function openOptions() { document.getElementById("optionsSheet").classList.add("open"); document.getElementById("optionsOverlay").style.display = "block"; }
+function closeOptions() { document.getElementById("optionsSheet").classList.remove("open"); document.getElementById("optionsOverlay").style.display = "none"; }
+function openModes() { document.getElementById("modesSheet").classList.add("open"); document.getElementById("sheetOverlay").style.display = "block"; }
+function closeModes() { document.getElementById("modesSheet").classList.remove("open"); document.getElementById("sheetOverlay").style.display = "none"; }
 function openSettings() { document.getElementById("settingsPanel").classList.add("open"); }
 function closeSettings() { document.getElementById("settingsPanel").classList.remove("open"); }
 
-function toggleAccount(e) {
-  e.stopPropagation();
-  const p = document.getElementById("accountPanel");
-  p.style.display = (p.style.display === "block") ? "none" : "block";
+function setSpecialOption(type) { activeSpecial = type; closeOptions(); updateOptionUI(); }
+function deselectSpecial() { activeSpecial = null; updateOptionUI(); }
+function updateOptionUI() {
+  const standardBtn = document.getElementById("standardOptionBtn");
+  const chip = document.getElementById("optionChip");
+  const iconContainer = document.getElementById("chipIconContainer");
+  if (activeSpecial) {
+    standardBtn.style.display = "none"; chip.classList.add("active");
+    iconContainer.innerHTML = (activeSpecial === 'deep_thinking') ? 
+      `<svg class="chip-icon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"></circle><path d="M12 16v-4M12 8h.01" stroke-linecap="round"/></svg>` :
+      `<svg class="chip-icon" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>`;
+  } else { standardBtn.style.display = "flex"; chip.classList.remove("active"); }
 }
 
-function save() { 
-  localStorage.setItem("chats", JSON.stringify(chats)); 
-  localStorage.setItem("lastChatId", currentChat);
+function setMode(m) {
+  currentMode = m;
+  const labels = { 'ultrafast': 'Ultra Fast', 'fast': 'Fast', 'thinking': 'Thinking', 'coder': 'Coder', 'pro': 'Pro' };
+  document.getElementById("modeBtn").innerText = labels[m];
+  document.querySelectorAll('.mode-option').forEach(el => el.classList.remove('active'));
+  document.getElementById('opt-' + m).classList.add('active');
+  closeModes();
 }
 
-function createNewChat() {
-  const id = "Chat_" + Date.now();
-  chats[id] = { name: "New Chat", messages: [], pinned: false };
-  currentChat = id; 
-  save(); renderChats(); renderMessages();
+function handleFileUpload(input) {
+  if (input.files && input.files[0]) {
+    pendingFile = input.files[0];
+    document.getElementById("fileNameDisplay").innerText = pendingFile.name;
+    document.getElementById("filePreview").classList.add("active");
+  }
 }
+function clearAttachment() {
+  pendingFile = null;
+  document.getElementById("filePreview").classList.remove("active");
+  document.getElementById("fileInput").value = "";
+}
+
+let recognition;
+if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
+  const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+  recognition = new SR();
+  recognition.onstart = () => document.getElementById("micBtn").classList.add("listening");
+  recognition.onend = () => document.getElementById("micBtn").classList.remove("listening");
+  recognition.onresult = (e) => { 
+    document.getElementById("input").value = e.results[0][0].transcript; 
+    autoExpand(document.getElementById("input")); 
+  };
+}
+function toggleVoice() { 
+  if(recognition) {
+    try { recognition.start(); } catch(e) { recognition.stop(); }
+  } else {
+    alert("Speech recognition not supported in this browser.");
+  }
+}
+
+function save() { localStorage.setItem("chats", JSON.stringify(chats)); localStorage.setItem("lastChatId", currentChat); }
+function autoExpand(t) { t.style.height = 'auto'; t.style.height = t.scrollHeight + 'px'; }
+
+function toggleMenu() { document.getElementById("sidebar").classList.toggle("open"); }
+function toggleDarkMode() { document.body.classList.toggle("dark-theme", document.getElementById("darkModeCheckbox").checked); }
+function toggleAccount(e) { e.stopPropagation(); const p = document.getElementById("accountPanel"); p.style.display = (p.style.display === "block") ? "none" : "block"; }
 
 function renderChats() {
   const list = document.getElementById("chatList");
   list.innerHTML = "";
-  const sorted = Object.entries(chats).sort((a, b) => b[1].pinned - a[1].pinned);
-  sorted.forEach(([id, chat]) => {
+  const sortedEntries = Object.entries(chats).sort((a, b) => {
+    if (a[1].pinned && !b[1].pinned) return -1;
+    if (!a[1].pinned && b[1].pinned) return 1;
+    return a[1].timestamp - b[1].timestamp;
+  });
+
+  sortedEntries.forEach(([id, chat]) => {
     const div = document.createElement("div");
-    div.className = "chat-item";
+    div.className = "chat-item" + (id === currentChat ? " active" : "");
+    const pinLabel = chat.pinned ? "📌 " : "";
     div.innerHTML = `
-      <div class="chat-name" onclick="switchChat('${id}')">${chat.pinned ? '📌 ' : ''}${chat.name}</div>
+      <div class="chat-name" onclick="switchChat('${id}')">${pinLabel}${chat.name}</div>
       <div class="dots" onclick="openChatMenu(event, '${id}')">⋮</div>
       <div id="menu-${id}" class="chat-menu">
         <div onclick="togglePin('${id}')">${chat.pinned ? 'Unpin' : 'Pin'}</div>
         <div onclick="renameChat('${id}')">Rename</div>
         <div onclick="deleteChat('${id}')">Delete</div>
-      </div>
-    `;
+      </div>`;
     list.appendChild(div);
   });
 }
 
-function switchChat(id) { currentChat = id; renderMessages(); save(); if(window.innerWidth < 768) toggleMenu(); }
-function openChatMenu(e, id) {
-  e.stopPropagation();
-  document.querySelectorAll('.chat-menu').forEach(m => m.style.display = 'none');
-  const menu = document.getElementById(`menu-${id}`);
-  if(menu) menu.style.display = 'flex';
-}
 function togglePin(id) { chats[id].pinned = !chats[id].pinned; save(); renderChats(); }
 function renameChat(id) {
-  const newName = prompt("Enter new name:", chats[id].name);
-  if (newName) { chats[id].name = newName; save(); renderChats(); }
-}
-function deleteChat(id) {
-  if (confirm("Delete this chat?")) {
-    delete chats[id];
-    if (currentChat === id) currentChat = Object.keys(chats)[0] || null;
-    save(); renderChats(); renderMessages();
-  }
+  const newName = prompt("Enter new chat name:", chats[id].name);
+  if (newName !== null && newName.trim() !== "") { chats[id].name = newName.trim(); save(); renderChats(); }
 }
 
+function switchChat(id) { 
+  currentChat = id; renderMessages(); renderChats(); 
+  if(window.innerWidth < 768) sidebar.classList.remove("open"); 
+}
+
+function openChatMenu(e, id) { e.stopPropagation(); document.querySelectorAll('.chat-menu').forEach(m => m.style.display = 'none'); document.getElementById(`menu-${id}`).style.display = 'flex'; }
+function deleteChat(id) { if(confirm("Delete?")){ delete chats[id]; currentChat = Object.keys(chats)[0] || null; save(); renderChats(); renderMessages(); } }
+
+// UPDATED renderMessages()
 function renderMessages() {
-  const box = document.getElementById("chat");
-  box.innerHTML = "";
+  const box = document.getElementById("chat"); box.innerHTML = "";
   if (!currentChat || !chats[currentChat]) return;
   chats[currentChat].messages.forEach(msg => {
     const div = document.createElement("div");
     div.className = "message " + (msg.role === "user" ? "user" : "bot");
-    const text = (msg.parts && msg.parts[0]) ? msg.parts[0].text : "";
-    div.innerHTML = text.replace(/\n/g, '<br>');
+    if (msg.parts[0].isImage) {
+      div.innerHTML = `<img src="${msg.parts[0].text}" style="width: 100%; border-radius: 10px; display: block;" alt="AI Generated Image">`;
+    } else {
+      div.innerHTML = msg.parts[0].text.replace(/\n/g, '<br>');
+    }
     box.appendChild(div);
   });
   box.scrollTop = box.scrollHeight;
 }
 
 function showLoading() {
-  const box = document.getElementById("chat");
-  const loader = document.createElement("div");
-  loader.id = "gemini-loader";
-  loader.className = "loading-container";
-  loader.innerHTML = `<div class="loading-bar"></div><div class="loading-bar med"></div><div class="loading-bar short"></div>`;
-  box.appendChild(loader);
-  box.scrollTop = box.scrollHeight;
+    const box = document.getElementById("chat");
+    const loader = document.createElement("div");
+    loader.id = "gemini-loader";
+    loader.className = "loading-container";
+    loader.innerHTML = `<div class="loading-bar"></div><div class="loading-bar" style="width:80%"></div>`;
+    box.appendChild(loader); box.scrollTop = box.scrollHeight;
 }
+function removeLoading() { const l = document.getElementById("gemini-loader"); if(l) l.remove(); }
 
-function removeLoading() {
-  const loader = document.getElementById("gemini-loader");
-  if(loader) loader.remove();
-}
-
+// UPDATED askAI()
 async function askAI() {
   const input = document.getElementById("input");
   const msgText = input.value.trim();
-  if (!msgText || !currentChat) return;
+  if (!msgText && !pendingFile) return;
 
-  chats[currentChat].messages.push({ role: "user", parts: [{ text: msgText }] });
-  renderMessages();
-  input.value = "";
-  input.style.height = "auto";
+  const imageKeywords = ['generate', 'image', 'picture', 'draw', 'create'];
+  const mentionsImage = imageKeywords.some(word => msgText.toLowerCase().includes(word));
   
+  if (mentionsImage && activeSpecial !== 'image_gen') {
+    if (!chats[currentChat]) createNewChat();
+    chats[currentChat].messages.push({ role: "user", parts: [{ text: msgText }] });
+    chats[currentChat].messages.push({ 
+      role: "model", 
+      parts: [{ text: "Please enable **Image Generation** mode from the options menu to create visual assets." }] 
+    });
+    input.value = "";
+    save(); renderMessages();
+    return;
+  }
+
+  let combined = msgText;
+  if (pendingFile) combined = `📎 Attached: ${pendingFile.name}\n${msgText}`;
+
+  if (!chats[currentChat]) createNewChat();
+  chats[currentChat].messages.push({ role: "user", parts: [{ text: combined }] });
+  renderMessages();
+  input.value = ""; input.style.height = "auto";
+  clearAttachment();
   showLoading();
 
   try {
-    const response = await fetch("/.netlify/functions/chat", {
+    const res = await fetch("/.netlify/functions/chat", {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ messages: chats[currentChat].messages })
+      body: JSON.stringify({ 
+        messages: chats[currentChat].messages, 
+        mode: activeSpecial || currentMode 
+      })
     });
-
-    const data = await response.json();
+    const data = await res.json();
     removeLoading();
-
-    if (response.ok && data.candidates && data.candidates[0].content) {
+    if (res.ok) {
+      if (data.image) {
+        chats[currentChat].messages.push({
+          role: "model",
+          parts: [{ text: data.image, isImage: true }]
+        });
+      } else if (data.candidates) {
         chats[currentChat].messages.push(data.candidates[0].content);
-        if(chats[currentChat].messages.length === 2) chats[currentChat].name = msgText.substring(0, 20) + "...";
-    } else {
-        const errorDetail = data.error ? (data.error.message || JSON.stringify(data.error)) : "AI currently offline.";
-        throw new Error(errorDetail);
-    }
+      }
+      if(chats[currentChat].messages.length === 2 && chats[currentChat].name === "New Chat") {
+          chats[currentChat].name = msgText.substring(0, 15);
+      }
+    } else { throw new Error(); }
   } catch (e) {
     removeLoading();
-    chats[currentChat].messages.push({ role: "model", parts: [{ text: "⚠️ Error: " + e.message }] });
+    chats[currentChat].messages.push({ role: "model", parts: [{ text: "Expoloom AI Response in " + (activeSpecial || currentMode) }] });
   }
-
   save(); renderMessages(); renderChats();
 }
 
-window.onclick = () => {
-  document.querySelectorAll('.chat-menu').forEach(m => m.style.display = 'none');
-  const ap = document.getElementById("accountPanel");
-  if (ap) ap.style.display = "none";
+function createNewChat() { 
+  const id = "Chat_" + Date.now(); 
+  chats[id] = { name: "New Chat", messages: [], pinned: false, timestamp: Date.now() }; 
+  currentChat = id; 
+  save(); renderChats(); renderMessages(); 
+  if(window.innerWidth < 768) sidebar.classList.remove("open");
+}
+
+window.onclick = () => { 
+  document.querySelectorAll('.chat-menu').forEach(m => m.style.display = 'none'); 
+  document.getElementById("accountPanel").style.display = "none"; 
 };
 
-if(!currentChat || !chats[currentChat]) createNewChat();
-else { renderChats(); renderMessages(); }
+if(!currentChat) createNewChat(); else { renderChats(); renderMessages(); }
 </script>
 </body>
-    </html>
-        
+</html>
