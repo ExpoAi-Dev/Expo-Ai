@@ -13,24 +13,20 @@ exports.handler = async function(event, context) {
       return {
         statusCode: 200,
         body: JSON.stringify({
-          candidates: [{ content: { role: "model", parts: [{ text: "Expoloom Pro is coming soon! Stay tuned for even more advanced features." }] } }]
+          candidates: [{ content: { role: "model", parts: [{ text: "Expoloom Pro is coming soon! Stay tuned." }] } }]
         })
       };
     }
 
-    // --- YOUR MULTI-MODEL PLAN MAPPING ---
+    // --- MAP MODELS TO YOUR PLAN ---
     let groqModel = "";
-    
-    // Main Toggle Button
     if (mode === 'ultrafast') groqModel = "llama-3.1-8b-instant";
     if (mode === 'fast') groqModel = "llama-3.3-70b-versatile";
-    
-    // Special Sheet Options
-    if (mode === 'thinking') groqModel = "qwen-qwq-32b"; 
+    if (mode === 'thinking') groqModel = "qwen-2.5-32b"; 
     if (mode === 'coder') groqModel = "deepseek-r1-distill-qwen-32b";
     if (mode === 'deep-thinking') groqModel = "deepseek-r1-distill-llama-70b";
 
-    // --- EXECUTE GROQ IF SELECTED ---
+    // --- EXECUTE GROQ WITH STREAMING ---
     if (groqModel) {
       const response = await fetch("https://api.groq.com/openai/v1/chat/completions", {
         method: "POST",
@@ -43,41 +39,41 @@ exports.handler = async function(event, context) {
           messages: messages.map(m => ({
             role: m.role === 'model' ? 'assistant' : 'user',
             content: m.parts[0].text
-          }))
+          })),
+          stream: true // CRITICAL: This enables the word-by-word flow
         })
       });
 
-      const data = await response.json();
-      
-      // Formatting Groq response for your index.html
+      // Pass the stream directly from Groq to your index.html
       return {
         statusCode: 200,
-        body: JSON.stringify({
-          candidates: [{
-            content: {
-              role: "model",
-              parts: [{ text: data.choices[0].message.content }]
-            }
-          }]
-        })
+        headers: {
+          "Content-Type": "text/event-stream",
+          "Cache-Control": "no-cache",
+          "Connection": "keep-alive"
+        },
+        body: response.body
       };
     }
 
-    // --- DEFAULT: GEMINI 2.5 FLASH (Standard Chat & Image Generation Prompting) ---
-    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${GEMINI_KEY}`, {
+    // --- DEFAULT: GEMINI 2.5 FLASH (Standard & Image Gen) ---
+    const geminiRes = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${GEMINI_KEY}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ contents: messages })
     });
 
-    const data = await response.json();
+    const data = await geminiRes.json();
     return {
-      statusCode: response.ok ? 200 : response.status,
+      statusCode: 200,
+      headers: { "Content-Type": "application/json" },
       body: JSON.stringify(data)
     };
 
   } catch (error) {
-    console.error("Function Error:", error.message);
-    return { statusCode: 500, body: JSON.stringify({ error: error.message }) };
+    return {
+      statusCode: 500,
+      body: JSON.stringify({ error: "Expoloom AI Error: " + error.message })
+    };
   }
 };
