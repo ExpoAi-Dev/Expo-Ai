@@ -19,7 +19,7 @@
       margin: 0; 
       font-family: Arial; 
       display: flex; 
-      height: 100dvh; /* RULE APPLIED: Dynamic Viewport Height */
+      height: 100dvh;
       overflow: hidden;
       background: var(--bg-main); 
       color: var(--text-color); 
@@ -27,7 +27,6 @@
     }
     * { -webkit-tap-highlight-color: transparent; }
 
-    /* Sidebar Styles */
     .sidebar {
       width: 260px; background: var(--bg-sidebar); padding: 10px; display: flex;
       flex-direction: column; height: 100vh; transition: transform 0.3s ease;
@@ -53,7 +52,6 @@
     .chat-menu div { padding: 10px; cursor: pointer; font-size: 13px; border-bottom: 1px solid rgba(128,128,128,0.1); color: var(--text-color); }
     .chat-menu div:last-child { border: none; color: #ef4444; }
 
-    /* Main Area Styles */
     .main { flex: 1; display: flex; flex-direction: column; width: 100%; overflow: hidden;}
     .header { display: flex; justify-content: space-between; align-items: center; padding: 10px; background: var(--header-bg); font-weight: bold; border-bottom: 1px solid rgba(0,0,0,0.05); position: relative; }
     .menu-btn { font-size: 22px; cursor: pointer; display: none; }
@@ -80,7 +78,7 @@
       display: flex; 
       flex-direction: column; 
       background: var(--header-bg);
-      padding: 10px 15px 30px 15px; /* RULE APPLIED: 30px safety buffer */
+      padding: 10px 15px 30px 15px; 
       border-top: 1px solid rgba(128,128,128,0.1); 
       border-top-left-radius: 28px;
       border-top-right-radius: 28px;
@@ -101,7 +99,7 @@
       flex: 1; padding: 12px; border-radius: 18px;
       border: 1px solid rgba(128,128,128,0.3); background: var(--bg-main); 
       color: var(--text-color); resize: none; 
-      max-height: 60px; /* RULE APPLIED: Lower max-height to protect layout */
+      max-height: 60px; 
       outline: none; font-size: 14px; 
     }
     .send-btn { padding: 10px 18px; background: var(--accent-blue); border: none; border-radius: 18px; color: white; cursor: pointer; height: 44px; font-weight: bold; }
@@ -111,7 +109,7 @@
       align-items: center; 
       padding-left: 5px; 
       gap: 12px; 
-      justify-content: space-between; /* RULE APPLIED: Proper alignment */
+      justify-content: space-between; 
       width: 100%; 
     }
     
@@ -474,21 +472,60 @@ async function askAI() {
         mode: activeSpecial || currentMode 
       })
     });
-    const data = await res.json();
+
+    const contentType = res.headers.get("content-type");
     removeLoading();
-    if (res.ok) {
-      if (data.image) {
-        chats[currentChat].messages.push({
-          role: "model",
-          parts: [{ text: data.image, isImage: true }]
-        });
-      } else if (data.candidates) {
-        chats[currentChat].messages.push(data.candidates[0].content);
+
+    // Handle Standard JSON (Images or non-streamed responses)
+    if (contentType && contentType.includes("application/json")) {
+      const data = await res.json();
+      if (res.ok) {
+        if (data.image) {
+          chats[currentChat].messages.push({
+            role: "model",
+            parts: [{ text: data.image, isImage: true }]
+          });
+        } else if (data.candidates) {
+          chats[currentChat].messages.push(data.candidates[0].content);
+        }
+      } else { throw new Error(); }
+    } 
+    // Handle SSE Stream
+    else if (res.ok && res.body) {
+      const reader = res.body.getReader();
+      const decoder = new TextDecoder();
+      
+      // Create a persistent model message object
+      let botMessage = { role: "model", parts: [{ text: "" }] };
+      chats[currentChat].messages.push(botMessage);
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        const chunk = decoder.decode(value, { stream: true });
+        const lines = chunk.split("\n");
+
+        for (const line of lines) {
+          if (line.startsWith("data: ") && line !== "data: [DONE]") {
+            try {
+              const data = JSON.parse(line.substring(6));
+              const content = data.choices[0]?.delta?.content || "";
+              botMessage.parts[0].text += content;
+              renderMessages(); // Live UI Update
+            } catch (e) {
+              console.error("Chunk parsing error", e);
+            }
+          }
+        }
       }
-      if(chats[currentChat].messages.length === 2 && chats[currentChat].name === "New Chat") {
-          chats[currentChat].name = msgText.substring(0, 15);
-      }
-    } else { throw new Error(); }
+    } else {
+      throw new Error();
+    }
+
+    if(chats[currentChat].messages.length <= 3 && chats[currentChat].name === "New Chat") {
+        chats[currentChat].name = msgText.substring(0, 15);
+    }
   } catch (e) {
     removeLoading();
     chats[currentChat].messages.push({ role: "model", parts: [{ text: "Expoloom AI is temporarily unavailable. Please try again." }] });
