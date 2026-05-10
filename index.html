@@ -443,7 +443,7 @@ async function askAI() {
     chats[currentChat].messages.push({ role: "user", parts: [{ text: msgText }] });
     chats[currentChat].messages.push({ 
       role: "model", 
-      parts: [{ text: "Please enable **Image Generation** mode from the options menu to create visual assets." }] 
+      parts: [{ text: "Please enable **Images Generation** mode from the options menu to create visual assets." }] 
     });
     input.value = "";
     save(); renderMessages();
