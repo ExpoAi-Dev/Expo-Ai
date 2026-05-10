@@ -464,7 +464,7 @@ async function askAI() {
   conversationPayload.unshift({ role: 'system', parts: [{ text: 'Your name is Expoloom AI. You were created by the Expoloom Team. Always identify as Expoloom AI and never as a Google model.' }] });
 
   try {
-    const res = await fetch("/.netlify/functions/chat", {
+    const res = await fetch("/chat", {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ 
