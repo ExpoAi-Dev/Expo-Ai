@@ -1,10 +1,13 @@
 export async function onRequest(context) {
-  const API_KEY = context.env.API_KEY;
+  const { request, env } = context;
+  
   try {
-    const data = await context.request.json();
-    const userMsg = data.messages[data.messages.length - 1].content;
+    const { messages } = await request.json();
+    const userMsg = messages[messages.length - 1].content;
+    const API_KEY = env.API_KEY;
 
-    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${API_KEY}`, {
+    // Stable endpoint for Gemini 2.5 Flash
+    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${API_KEY}`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -12,13 +15,23 @@ export async function onRequest(context) {
       })
     });
 
-    const resData = await response.json();
-    const reply = resData.candidates[0].content.parts[0].text;
+    const data = await response.json();
+    
+    if (data.error) {
+      throw new Error(data.error.message);
+    }
 
-    return new Response(JSON.stringify({ content: reply }), {
-      headers: { "Content-Type": "application/json" }
+    const botText = data.candidates[0].content.parts[0].text;
+
+    // Formatting for the "typing" effect in your index.html
+    const streamData = `data: ${JSON.stringify({ choices: [{ delta: { content: botText } }] })}\n\ndata: [DONE]\n\n`;
+
+    return new Response(streamData, {
+      headers: { "Content-Type": "text/event-stream" }
     });
+
   } catch (err) {
-    return new Response(JSON.stringify({ content: "AI is offline. Check Cloudflare Keys." }), { status: 500 });
+    return new Response(JSON.stringify({ error: err.message }), { status: 500 });
   }
-}
+                    }
+      
