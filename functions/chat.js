@@ -34,6 +34,18 @@ export async function onRequest(context) {
 
     const botText = data.candidates?.[0]?.content?.parts?.[0]?.text || "I'm sorry, I couldn't generate a response.";
 
+    // --- KV COUNTER LOGIC START ---
+    try {
+      // Get current count, default to 0 if it doesn't exist
+      const currentCount = await env.USAGE_KV.get("gemini_count") || 0;
+      // Add 1 and save back to KV
+      await env.USAGE_KV.put("gemini_count", (parseInt(currentCount) + 1).toString());
+    } catch (kvErr) {
+      console.log("KV Storage Error:", kvErr.message);
+      // We don't stop the chat just because the counter failed
+    }
+    // --- KV COUNTER LOGIC END ---
+
     const streamData = `data: ${JSON.stringify({ choices: [{ delta: { content: botText } }] })}\n\ndata: [DONE]\n\n`;
     
     return new Response(streamData, {
