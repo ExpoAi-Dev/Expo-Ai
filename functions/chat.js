@@ -35,29 +35,31 @@ export async function onRequest(context) {
     try {
       const now = new Date();
       
-      // 1. Keys for Time-Based Tracking
-      const dateStr = now.toISOString().split('T')[0]; // 2026-05-14
-      const hour = now.getHours(); // 0 to 23
-      const dayOfMonth = now.getDate(); // 1 to 31
+      const dateStr = now.toISOString().split('T')[0]; 
+      const hour = now.getHours(); 
+      const dayOfMonth = now.getDate(); 
       const monthKey = `monthly_${now.getFullYear()}-${now.getMonth() + 1}`;
       
       const dayNames = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
       const dayName = dayNames[now.getDay()];
 
-      // Helper function to increment a key
       async function increment(key) {
         const val = await env.USAGE_KV.get(key) || 0;
         await env.USAGE_KV.put(key, (parseInt(val) + 1).toString());
       }
 
-      // 2. Execute Increments
-      await increment(`daily_${dateStr}`);              // For Today's Total
-      await increment(`hourly_${dateStr}_${hour}`);     // For Today's Line Graph
-      await increment(`weekly_${dayName}`);             // For Weekly Menu
-      await increment(monthKey);                        // For Monthly Total
-      await increment(`daycount_${monthKey}_${dayOfMonth}`); // For Monthly Bar Graph
+      // Trackers
+      await increment(`daily_${dateStr}`);              // Today's Total
+      await increment(`hourly_${dateStr}_${hour}`);     // Today's Hourly Graph
+      await increment(`weekly_${dayName}`);             // Weekly Total Row
       
-      // Original total tracker
+      // FIX: This tracks the specific hour for the specific day (e.g., Monday at 2PM)
+      await increment(`weekly_hourly_${dayName}_${hour}`); 
+      
+      await increment(monthKey);                        // Monthly Total
+      await increment(`daycount_${monthKey}_${dayOfMonth}`); // Monthly Bar Graph
+      
+      // Global total
       const total = await env.USAGE_KV.get("gemini_count") || 0;
       await env.USAGE_KV.put("gemini_count", (parseInt(total) + 1).toString());
 
