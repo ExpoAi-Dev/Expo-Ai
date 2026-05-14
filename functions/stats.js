@@ -1,51 +1,42 @@
 export async function onRequest(context) {
   const { request, env } = context;
   const { searchParams } = new URL(request.url);
-  
-  if (searchParams.get('key') !== env.ADMIN_KEY) {
-    return new Response("Denied", { status: 403 });
-  }
+  if (searchParams.get('key') !== env.ADMIN_KEY) return new Response("Denied", { status: 403 });
 
   const now = new Date();
   const dateStr = now.toISOString().split('T')[0];
   const monthKey = `monthly_${now.getFullYear()}-${now.getMonth() + 1}`;
+  const days = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
 
-  // 1. Fetch Main Data
+  // 1. Fetch Today & Monthly Totals
   const todayTotal = await env.USAGE_KV.get(`daily_${dateStr}`) || 0;
   const monthTotal = await env.USAGE_KV.get(monthKey) || 0;
 
-  // 2. Fetch Today's Hourly Data
-  let hourlyData = [];
-  for (let i = 0; i < 24; i++) {
-    const val = await env.USAGE_KV.get(`hourly_${dateStr}_${i}`) || 0;
-    hourlyData.push(val);
-  }
-
-  // 3. Fetch Monthly Data
-  let monthlyData = [];
-  for (let i = 1; i <= 31; i++) {
-    const val = await env.USAGE_KV.get(`daycount_${monthKey}_${i}`) || 0;
-    monthlyData.push(val);
-  }
-
-  // 4. Fetch Weekly Data & Hourly breakdown for each day
-  const days = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
-  let weekCounts = {};
-  for (const day of days) {
-    weekCounts[day] = await env.USAGE_KV.get(`weekly_${day}`) || 0;
-  }
+  // 2. Fetch All Data in Parallel (Faster)
+  const [todayHourly, monthlyDaily, weekTotals, weekHourly] = await Promise.all([
+    // Today's Hours
+    Promise.all(Array.from({length: 24}, (_, i) => env.USAGE_KV.get(`hourly_${dateStr}_${i}`).then(v => v || 0))),
+    // Monthly Days
+    Promise.all(Array.from({length: 31}, (_, i) => env.USAGE_KV.get(`daycount_${monthKey}_${i+1}`).then(v => v || 0))),
+    // Weekly Day Totals
+    Promise.all(days.map(d => env.USAGE_KV.get(`weekly_${d}`).then(v => v || 0))),
+    // Weekly Hourly Breakdown (Fetches specific day/hour keys)
+    Promise.all(days.map(d => 
+      Promise.all(Array.from({length: 24}, (_, i) => env.USAGE_KV.get(`weekly_hourly_${d}_${i}`).then(v => v || 0)))
+    ))
+  ]);
 
   const htmlContent = `<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Expoloom AI Analytics</title>
+    <title>Expoloom AI Insights</title>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
         body { font-family: -apple-system, sans-serif; padding: 15px; background: #fff; color: #000; -webkit-tap-highlight-color: transparent; }
         .card { border: 1.5px solid #000; padding: 20px; border-radius: 18px; margin-bottom: 15px; cursor: pointer; }
-        h3 { margin: 0; font-size: 11px; text-transform: uppercase; color: #888; letter-spacing: 1px; font-weight: 700; }
+        h3 { margin: 0; font-size: 11px; text-transform: uppercase; color: #888; font-weight: 700; letter-spacing: 1px; }
         .count { font-size: 34px; font-weight: bold; margin: 5px 0; }
         .graph-container { display: none; margin-top: 15px; height: 200px; border-top: 1px solid #eee; padding-top: 15px; }
         .weekly-list { display: none; margin-top: 15px; border-top: 1px solid #eee; padding-top: 10px; }
@@ -70,12 +61,9 @@ export async function onRequest(context) {
         <h3>Weekly Report</h3>
         <div style="font-size: 13px; margin-top: 5px; color: #666;">Tap for daily and hourly info</div>
         <div id="weeklyMenu" class="weekly-list" onclick="event.stopPropagation()">
-            ${days.map(day => `
+            ${days.map((day, idx) => `
                 <div class="day-row" onclick="toggle('graph-${day}')">
-                    <div class="day-flex">
-                        <span>${day}</span>
-                        <span>${weekCounts[day]}</span>
-                    </div>
+                    <div class="day-flex"><span>${day}</span><span>${weekTotals[idx]}</span></div>
                     <div id="graph-${day}" class="day-graph-box" onclick="event.stopPropagation()">
                         <canvas id="chart-${day}"></canvas>
                     </div>
@@ -100,7 +88,7 @@ export async function onRequest(context) {
             el.style.display = (el.style.display === 'block') ? 'none' : 'block';
         }
 
-        const commonOptions = {
+        const opt = {
             maintainAspectRatio: false,
             plugins: { legend: { display: false } },
             scales: { 
@@ -109,43 +97,38 @@ export async function onRequest(context) {
             }
         };
 
-        const hoursLabels = Array.from({length: 24}, (_, i) => i + ':00');
+        const hours = Array.from({length: 24}, (_, i) => i + ':00');
 
-        // Today Chart
         new Chart(document.getElementById('todayChart'), {
             type: 'bar',
-            data: { labels: hoursLabels, datasets: [{ data: [${hourlyData.join(',')}], backgroundColor: '#000', barThickness: 8, borderRadius: 4 }] },
-            options: commonOptions
+            data: { labels: hours, datasets: [{ data: [${todayHourly.join(',')}], backgroundColor: '#000', barThickness: 8, borderRadius: 4 }] },
+            options: opt
         });
 
-        // Monthly Chart
         new Chart(document.getElementById('monthChart'), {
             type: 'bar',
-            data: { labels: Array.from({length: 31}, (_, i) => i + 1), datasets: [{ data: [${monthlyData.join(',')}], backgroundColor: '#000', borderRadius: 2 }] },
-            options: commonOptions
+            data: { labels: Array.from({length: 31}, (_, i) => i + 1), datasets: [{ data: [${monthlyDaily.join(',')}], backgroundColor: '#000', borderRadius: 2 }] },
+            options: opt
         });
 
-        // Weekly Day Charts - Now exactly like the Today Graph
-        ${days.map(day => `
+        ${days.map((day, idx) => `
             new Chart(document.getElementById('chart-${day}'), {
                 type: 'bar',
                 data: { 
-                    labels: hoursLabels, 
+                    labels: hours, 
                     datasets: [{ 
-                        data: [${hourlyData.join(',')}], // Using today's hourly format
+                        data: [${weekHourly[idx].join(',')}], 
                         backgroundColor: '#000', 
                         barThickness: 8, 
                         borderRadius: 4 
                     }] 
                 },
-                options: commonOptions
+                options: opt
             });
         `).join('')}
     </script>
 </body>
 </html>`;
 
-  return new Response(htmlContent, {
-    headers: { "Content-Type": "text/html; charset=utf-8" }
-  });
+  return new Response(htmlContent, { headers: { "Content-Type": "text/html; charset=utf-8" } });
 }
