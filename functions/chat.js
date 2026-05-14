@@ -8,11 +8,10 @@ export async function onRequest(context) {
   try {
     const { messages } = await request.json();
 
-    // CLEANUP: Ensure every part has text and the roles are correct for Gemini
     const formattedMessages = messages.map(m => ({
       role: m.role === "assistant" ? "model" : "user",
       parts: [{ text: m.content || m.parts?.[0]?.text || "" }]
-    })).filter(m => m.parts[0].text.trim() !== ""); // Remove any empty messages
+    })).filter(m => m.parts[0].text.trim() !== "");
 
     if (formattedMessages.length === 0) {
         throw new Error("No message content found.");
@@ -21,9 +20,7 @@ export async function onRequest(context) {
     const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${env.API_KEY}`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        contents: formattedMessages
-      })
+      body: JSON.stringify({ contents: formattedMessages })
     });
 
     const data = await response.json();
@@ -34,17 +31,36 @@ export async function onRequest(context) {
 
     const botText = data.candidates?.[0]?.content?.parts?.[0]?.text || "I'm sorry, I couldn't generate a response.";
 
-    // --- KV COUNTER LOGIC START ---
+    // --- ADVANCED KV COUNTER START ---
     try {
-      // Get current count, default to 0 if it doesn't exist
-      const currentCount = await env.USAGE_KV.get("gemini_count") || 0;
-      // Add 1 and save back to KV
-      await env.USAGE_KV.put("gemini_count", (parseInt(currentCount) + 1).toString());
+      const now = new Date();
+      
+      // 1. Get Date Strings for Keys
+      const todayKey = `daily_${now.toISOString().split('T')[0]}`; // e.g., daily_2026-05-14
+      const monthKey = `monthly_${now.getFullYear()}-${now.getMonth() + 1}`; // e.g., monthly_2026-5
+      const dayNames = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+      const dayName = dayNames[now.getDay()]; // e.g., Monday
+      const weekKey = `weekly_${dayName}`;
+
+      // Helper function to increment a key
+      async function increment(key) {
+        const val = await env.USAGE_KV.get(key) || 0;
+        await env.USAGE_KV.put(key, (parseInt(val) + 1).toString());
+      }
+
+      // 2. Run all increments
+      await increment(todayKey);
+      await increment(monthKey);
+      await increment(weekKey);
+      
+      // Also keep your original total count if you want it
+      const total = await env.USAGE_KV.get("gemini_count") || 0;
+      await env.USAGE_KV.put("gemini_count", (parseInt(total) + 1).toString());
+
     } catch (kvErr) {
       console.log("KV Storage Error:", kvErr.message);
-      // We don't stop the chat just because the counter failed
     }
-    // --- KV COUNTER LOGIC END ---
+    // --- ADVANCED KV COUNTER END ---
 
     const streamData = `data: ${JSON.stringify({ choices: [{ delta: { content: botText } }] })}\n\ndata: [DONE]\n\n`;
     
