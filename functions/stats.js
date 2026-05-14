@@ -2,44 +2,62 @@ export async function onRequest(context) {
   const { request, env } = context;
   const { searchParams } = new URL(request.url);
   
-  // 1. Safety Check: Does the password in the link match your Cloudflare Secret?
-  const submittedPass = searchParams.get('key');
-  if (submittedPass !== env.ADMIN_KEY) {
-    return new Response("Access Denied: Incorrect Password", { status: 403 });
+  if (searchParams.get('key') !== env.ADMIN_KEY) {
+    return new Response("Unauthorized", { status: 403 });
   }
 
-  // 2. Fetch the numbers from your USAGE_KV storage
-  const gemini = await env.USAGE_KV.get("gemini_count") || 0;
-  const groq = await env.USAGE_KV.get("groq_count") || 0;
+  // Fetch all counts
+  const daily = await env.USAGE_KV.get("daily_count") || 0;
+  const monthly = await env.USAGE_KV.get("monthly_count") || 0;
+  
+  // Weekly Data (Example of how to fetch multiple days)
+  const days = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
+  let weeklyHtml = "";
+  for (let day of days) {
+    const count = await env.USAGE_KV.get(`usage_${day}`) || 0;
+    weeklyHtml += `<div class="day-row"><span>${day}</span><span>${count}</span></div>`;
+  }
 
-  // 3. The Dashboard Page (Clean and mobile-friendly for your Poco)
-  const html = `
+  return new Response(`
     <!DOCTYPE html>
-    <html lang="en">
+    <html>
     <head>
-        <meta charset="UTF-8">
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <title>Expoloom AI Stats</title>
         <style>
-            body { font-family: -apple-system, sans-serif; padding: 25px; background: #fff; color: #000; }
-            h2 { font-weight: 700; border-bottom: 2px solid #000; padding-bottom: 10px; }
-            .card { border: 1px solid #ddd; padding: 20px; border-radius: 12px; margin-top: 20px; background: #f9f9f9; }
-            .stat-line { font-size: 18px; margin: 10px 0; display: flex; justify-content: space-between; }
-            .logout { display: block; margin-top: 30px; color: #888; text-decoration: none; font-size: 14px; }
+            body { font-family: sans-serif; padding: 20px; background: #f4f4f4; }
+            .card { background: white; padding: 20px; border-radius: 12px; margin-bottom: 15px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); }
+            h2 { margin: 0 0 10px 0; font-size: 18px; }
+            .big-num { font-size: 32px; font-weight: bold; color: #000; }
+            details { cursor: pointer; }
+            summary { font-weight: bold; padding: 10px 0; list-style: none; display: flex; justify-content: space-between; }
+            summary::after { content: "▼"; font-size: 12px; }
+            .day-row { display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid #eee; }
         </style>
     </head>
     <body>
-        <h2>Expoloom AI Usage</h2>
+        <h1>Expoloom Stats</h1>
+
         <div class="card">
-            <div class="stat-line"><span>Gemini Requests:</span> <b>${gemini}</b></div>
-            <div class="stat-line"><span>Groq Requests:</span> <b>${groq}</b></div>
+            <h2>Today's Usage</h2>
+            <div class="big-num">${daily}</div>
         </div>
-        <a href="/admin" class="logout">← Logout and Go Back</a>
+
+        <div class="card">
+            <details>
+                <summary>Weekly Usage Report</summary>
+                <div style="margin-top:10px;">
+                    ${weeklyHtml}
+                </div>
+            </details>
+        </div>
+
+        <div class="card">
+            <h2>Monthly Total</h2>
+            <div class="big-num">${monthly}</div>
+        </div>
+
+        <a href="/admin" style="display:block; text-align:center; margin-top:20px; color:#666; text-decoration:none;">Logout</a>
     </body>
     </html>
-  `;
-
-  return new Response(html, {
-    headers: { "Content-Type": "text/html" }
-  });
+  `, { headers: { "Content-Type": "text/html" } });
 }
