@@ -10,7 +10,7 @@ export async function onRequest(context) {
   const dateStr = now.toISOString().split('T')[0];
   const monthKey = `monthly_${now.getFullYear()}-${now.getMonth() + 1}`;
 
-  // 1. Fetch Totals
+  // 1. Fetch Main Totals
   const todayTotal = await env.USAGE_KV.get(`daily_${dateStr}`) || 0;
   const monthTotal = await env.USAGE_KV.get(monthKey) || 0;
 
@@ -53,8 +53,8 @@ export async function onRequest(context) {
         .weekly-list { display: none; margin-top: 15px; border-top: 1px solid #eee; padding-top: 10px; }
         .day-row { padding: 12px 0; border-bottom: 1px solid #f0f0f0; cursor: pointer; }
         .day-row:last-child { border: none; }
-        .day-flex { display: flex; justify-content: space-between; align-items: center; }
-        .day-graph { display: none; height: 120px; margin-top: 10px; background: #fafafa; border-radius: 8px; padding: 5px; }
+        .day-flex { display: flex; justify-content: space-between; align-items: center; font-weight: 600; }
+        .day-graph-box { display: none; height: 150px; margin-top: 10px; padding-top: 10px; }
     </style>
 </head>
 <body>
@@ -70,16 +70,16 @@ export async function onRequest(context) {
 
     <div class="card" onclick="toggle('weeklyMenu')">
         <h3>Weekly Report</h3>
-        <div style="font-size: 14px; margin-top: 5px; font-weight: 600;">Tap to view days</div>
+        <div style="font-size: 14px; margin-top: 5px; color: #444;">Tap to view daily data</div>
         
         <div id="weeklyMenu" class="weekly-list" onclick="event.stopPropagation()">
             ${days.map(day => `
                 <div class="day-row" onclick="toggle('graph-${day}')">
                     <div class="day-flex">
                         <span>${day}</span>
-                        <b>${weekCounts[day]}</b>
+                        <span>${weekCounts[day]}</span>
                     </div>
-                    <div id="graph-${day}" class="day-graph">
+                    <div id="graph-${day}" class="day-graph-box" onclick="event.stopPropagation()">
                         <canvas id="chart-${day}"></canvas>
                     </div>
                 </div>
@@ -103,28 +103,35 @@ export async function onRequest(context) {
             el.style.display = (el.style.display === 'block') ? 'none' : 'block';
         }
 
-        const chartOptions = { maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true } } };
+        const commonOptions = { 
+            maintainAspectRatio: false, 
+            plugins: { legend: { display: false } }, 
+            scales: { y: { beginAtZero: true, ticks: { stepSize: 1 } } } 
+        };
 
-        // Today Chart
+        // Today Chart (BAR)
         new Chart(document.getElementById('todayChart'), {
             type: 'bar',
-            data: { labels: Array.from({length: 24}, (_, i) => i + ':00'), datasets: [{ data: [${hourlyData.join(',')}], backgroundColor: '#000' }] },
-            options: chartOptions
+            data: { labels: Array.from({length: 24}, (_, i) => i + ':00'), datasets: [{ data: [${hourlyData.join(',')}], backgroundColor: '#000', borderRadius: 4 }] },
+            options: commonOptions
         });
 
-        // Monthly Chart
+        // Monthly Chart (BAR)
         new Chart(document.getElementById('monthChart'), {
             type: 'bar',
-            data: { labels: Array.from({length: 31}, (_, i) => i + 1), datasets: [{ data: [${monthlyData.join(',')}], backgroundColor: '#000' }] },
-            options: chartOptions
+            data: { labels: Array.from({length: 31}, (_, i) => i + 1), datasets: [{ data: [${monthlyData.join(',')}], backgroundColor: '#000', borderRadius: 2 }] },
+            options: commonOptions
         });
 
-        // Placeholder Charts for Days (This will show zero until you track specific day-hours)
+        // Weekly Sub-Charts (Each day gets its own bar graph)
         ${days.map(day => `
             new Chart(document.getElementById('chart-${day}'), {
                 type: 'bar',
-                data: { labels: ['Usage'], datasets: [{ data: [${weekCounts[day]}], backgroundColor: '#444' }] },
-                options: chartOptions
+                data: { 
+                    labels: ['Total Usage'], 
+                    datasets: [{ data: [${weekCounts[day]}], backgroundColor: '#000', borderRadius: 4 }] 
+                },
+                options: commonOptions
             });
         `).join('')}
     </script>
