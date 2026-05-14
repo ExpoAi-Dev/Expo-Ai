@@ -1,32 +1,43 @@
 export async function onRequest(context) {
   const { request, env } = context;
   const { searchParams } = new URL(request.url);
-  if (searchParams.get('key') !== env.ADMIN_KEY) return new Response("Denied", { status: 403 });
+  
+  // 1. Security Check
+  if (searchParams.get('key') !== env.ADMIN_KEY) {
+    return new Response("Denied", { status: 403 });
+  }
 
   const now = new Date();
   const dateStr = now.toISOString().split('T')[0];
   const monthKey = `monthly_${now.getFullYear()}-${now.getMonth() + 1}`;
 
-  // Fetch Today's Hourly Data (00:00 to 23:00)
+  // 2. Fetch Totals first (Fixes the deployment crash)
+  const todayTotal = await env.USAGE_KV.get(`daily_${dateStr}`) || 0;
+  const monthTotal = await env.USAGE_KV.get(monthKey) || 0;
+
+  // 3. Fetch Today's Hourly Data (00:00 to 23:00)
   let hourlyData = [];
   for (let i = 0; i < 24; i++) {
     const val = await env.USAGE_KV.get(`hourly_${dateStr}_${i}`) || 0;
     hourlyData.push(val);
   }
 
-  // Fetch Monthly Data (Day 1 to 31)
+  // 4. Fetch Monthly Data (Day 1 to 31)
   let monthlyData = [];
   for (let i = 1; i <= 31; i++) {
     const val = await env.USAGE_KV.get(`daycount_${monthKey}_${i}`) || 0;
     monthlyData.push(val);
   }
 
-  // Weekly Rows
+  // 5. Build Weekly Rows
   const days = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
   let weeklyRows = "";
   for (const day of days) {
     const val = await env.USAGE_KV.get(`weekly_${day}`) || 0;
-    weeklyRows += `<div class="day-row"><span>${day}</span><b>${val}</b></div>`;
+    weeklyRows += `
+      <div style="display:flex; justify-content:space-between; padding: 12px 0; border-bottom: 1px dotted #ccc;">
+        <span>${day}</span><b>${val}</b>
+      </div>`;
   }
 
   const html = `
@@ -39,15 +50,13 @@ export async function onRequest(context) {
         <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
         <style>
             body { font-family: -apple-system, sans-serif; padding: 15px; background: #fff; color: #000; }
-            .card { border: 1px solid #000; padding: 20px; border-radius: 15px; margin-bottom: 15px; cursor: pointer; transition: 0.2s; }
-            .card:active { background: #f0f0f0; }
+            .card { border: 1px solid #000; padding: 20px; border-radius: 15px; margin-bottom: 15px; cursor: pointer; }
             h3 { margin: 0; font-size: 12px; text-transform: uppercase; color: #666; letter-spacing: 1px; }
             .count { font-size: 32px; font-weight: bold; margin: 5px 0; }
             .graph-container { display: none; margin-top: 15px; height: 180px; border-top: 1px solid #eee; padding-top: 10px; }
             details { border: 1px solid #000; border-radius: 15px; padding: 15px; margin-bottom: 15px; }
             summary { font-weight: bold; cursor: pointer; display: flex; justify-content: space-between; align-items: center; list-style: none; }
             summary::after { content: "v"; font-size: 12px; }
-            .day-row { display: flex; justify-content: space-between; padding: 12px 0; border-bottom: 1px dotted #ccc; }
         </style>
     </head>
     <body>
@@ -55,8 +64,8 @@ export async function onRequest(context) {
 
         <div class="card" onclick="toggleGraph('todayGraph')">
             <h3>Today's Usage</h3>
-            <div class="count">${await env.USAGE_KV.get(`daily_${dateStr}`) || 0}</div>
-            <div style="font-size: 11px; color: #888;">Tap to see hourly graph</div>
+            <div class="count">${todayTotal}</div>
+            <div style="font-size: 11px; color: #888;">Tap for hourly graph</div>
             <div id="todayGraph" class="graph-container"><canvas id="todayChart"></canvas></div>
         </div>
 
@@ -67,8 +76,8 @@ export async function onRequest(context) {
 
         <div class="card" onclick="toggleGraph('monthGraph')">
             <h3>Monthly Total</h3>
-            <div class="count">${await env.USAGE_KV.get(monthKey) || 0}</div>
-            <div style="font-size: 11px; color: #888;">Tap to see daily breakdown</div>
+            <div class="count">${monthTotal}</div>
+            <div style="font-size: 11px; color: #888;">Tap for daily breakdown</div>
             <div id="monthGraph" class="graph-container"><canvas id="monthChart"></canvas></div>
         </div>
 
@@ -80,7 +89,6 @@ export async function onRequest(context) {
                 el.style.display = el.style.display === 'block' ? 'none' : 'block';
             }
 
-            // Create Today Chart (Line)
             new Chart(document.getElementById('todayChart'), {
                 type: 'line',
                 data: {
@@ -89,8 +97,6 @@ export async function onRequest(context) {
                         label: 'Requests', 
                         data: [${hourlyData.join(',')}], 
                         borderColor: '#000', 
-                        borderWidth: 2,
-                        pointRadius: 0,
                         tension: 0.3,
                         fill: true,
                         backgroundColor: 'rgba(0,0,0,0.05)'
@@ -99,7 +105,6 @@ export async function onRequest(context) {
                 options: { maintainAspectRatio: false, plugins: { legend: { display: false } } }
             });
 
-            // Create Month Chart (Bar)
             new Chart(document.getElementById('monthChart'), {
                 type: 'bar',
                 data: {
@@ -107,8 +112,7 @@ export async function onRequest(context) {
                     datasets: [{ 
                         label: 'Requests', 
                         data: [${monthlyData.join(',')}], 
-                        backgroundColor: '#000',
-                        borderRadius: 4
+                        backgroundColor: '#000'
                     }]
                 },
                 options: { maintainAspectRatio: false, plugins: { legend: { display: false } } }
