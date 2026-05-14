@@ -3,61 +3,71 @@ export async function onRequest(context) {
   const { searchParams } = new URL(request.url);
   
   if (searchParams.get('key') !== env.ADMIN_KEY) {
-    return new Response("Unauthorized", { status: 403 });
+    return new Response("Access Denied", { status: 403 });
   }
 
-  // Fetch all counts
-  const daily = await env.USAGE_KV.get("daily_count") || 0;
-  const monthly = await env.USAGE_KV.get("monthly_count") || 0;
-  
-  // Weekly Data (Example of how to fetch multiple days)
+  const now = new Date();
+  const todayKey = `daily_${now.toISOString().split('T')[0]}`;
+  const monthKey = `monthly_${now.getFullYear()}-${now.getMonth() + 1}`;
+
+  const daily = await env.USAGE_KV.get(todayKey) || 0;
+  const monthly = await env.USAGE_KV.get(monthKey) || 0;
+
+  // Build the Weekly List
   const days = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
-  let weeklyHtml = "";
-  for (let day of days) {
-    const count = await env.USAGE_KV.get(`usage_${day}`) || 0;
-    weeklyHtml += `<div class="day-row"><span>${day}</span><span>${count}</span></div>`;
+  let weeklyRows = "";
+  for (const day of days) {
+    const val = await env.USAGE_KV.get(`weekly_${day}`) || 0;
+    weeklyRows += `
+      <div style="display:flex; justify-content:space-between; padding: 10px 0; border-bottom: 1px solid #eee;">
+        <span>${day}</span>
+        <b>${val}</b>
+      </div>`;
   }
 
-  return new Response(`
+  const html = `
     <!DOCTYPE html>
     <html>
     <head>
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
         <style>
-            body { font-family: sans-serif; padding: 20px; background: #f4f4f4; }
-            .card { background: white; padding: 20px; border-radius: 12px; margin-bottom: 15px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); }
-            h2 { margin: 0 0 10px 0; font-size: 18px; }
-            .big-num { font-size: 32px; font-weight: bold; color: #000; }
-            details { cursor: pointer; }
-            summary { font-weight: bold; padding: 10px 0; list-style: none; display: flex; justify-content: space-between; }
+            body { font-family: sans-serif; padding: 20px; background: #fff; line-height: 1.5; }
+            .card { border: 1px solid #000; padding: 20px; border-radius: 12px; margin-bottom: 20px; }
+            h3 { margin-top: 0; font-size: 14px; text-transform: uppercase; color: #666; }
+            .count { font-size: 32px; font-weight: bold; }
+            details { border: 1px solid #000; border-radius: 12px; padding: 15px; margin-bottom: 20px; }
+            summary { font-weight: bold; cursor: pointer; display: flex; justify-content: space-between; align-items: center; }
             summary::after { content: "▼"; font-size: 12px; }
-            .day-row { display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid #eee; }
+            details[open] summary::after { content: "▲"; }
         </style>
     </head>
     <body>
-        <h1>Expoloom Stats</h1>
+        <h2>Expoloom AI Analytics</h2>
 
         <div class="card">
-            <h2>Today's Usage</h2>
-            <div class="big-num">${daily}</div>
+            <h3>Today's Usage</h3>
+            <div class="count">${daily}</div>
         </div>
 
-        <div class="card">
-            <details>
-                <summary>Weekly Usage Report</summary>
-                <div style="margin-top:10px;">
-                    ${weeklyHtml}
+        <details>
+            <summary>Weekly Reports</summary>
+            <div style="margin-top: 15px;">
+                <div style="display:flex; justify-content:space-between; color:#666; font-size:12px; margin-bottom:5px;">
+                    <span>DAYS</span><span>USAGE</span>
                 </div>
-            </details>
-        </div>
+                ${weeklyRows}
+            </div>
+        </details>
 
         <div class="card">
-            <h2>Monthly Total</h2>
-            <div class="big-num">${monthly}</div>
+            <h3>Monthly Total</h3>
+            <div class="count">${monthly}</div>
         </div>
 
-        <a href="/admin" style="display:block; text-align:center; margin-top:20px; color:#666; text-decoration:none;">Logout</a>
+        <a href="/admin" style="color: #666; text-decoration: none; font-size: 14px;">← Logout</a>
     </body>
     </html>
-  `, { headers: { "Content-Type": "text/html" } });
+  `;
+
+  return new Response(html, { headers: { "Content-Type": "text/html" } });
 }
