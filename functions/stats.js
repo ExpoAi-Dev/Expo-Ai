@@ -3,7 +3,8 @@ export async function onRequest(context) {
   const { searchParams } = new URL(request.url);
   if (searchParams.get('key') !== env.ADMIN_KEY) return new Response("Denied", { status: 403 });
 
-  const now = new Date();
+  // --- FIX 1: IST TIMEZONE (UTC +5:30) ---
+  const now = new Date(new Date().getTime() + (5.5 * 60 * 60 * 1000));
   const dateStr = now.toISOString().split('T')[0];
   const monthKey = `monthly_${now.getFullYear()}-${now.getMonth() + 1}`;
   const days = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
@@ -12,15 +13,11 @@ export async function onRequest(context) {
   const todayTotal = await env.USAGE_KV.get(`daily_${dateStr}`) || 0;
   const monthTotal = await env.USAGE_KV.get(monthKey) || 0;
 
-  // 2. Fetch All Data in Parallel (Faster)
+  // 2. Fetch All Data in Parallel
   const [todayHourly, monthlyDaily, weekTotals, weekHourly] = await Promise.all([
-    // Today's Hours
     Promise.all(Array.from({length: 24}, (_, i) => env.USAGE_KV.get(`hourly_${dateStr}_${i}`).then(v => v || 0))),
-    // Monthly Days
     Promise.all(Array.from({length: 31}, (_, i) => env.USAGE_KV.get(`daycount_${monthKey}_${i+1}`).then(v => v || 0))),
-    // Weekly Day Totals
     Promise.all(days.map(d => env.USAGE_KV.get(`weekly_${d}`).then(v => v || 0))),
-    // Weekly Hourly Breakdown (Fetches specific day/hour keys)
     Promise.all(days.map(d => 
       Promise.all(Array.from({length: 24}, (_, i) => env.USAGE_KV.get(`weekly_hourly_${d}_${i}`).then(v => v || 0)))
     ))
@@ -41,7 +38,6 @@ export async function onRequest(context) {
         .graph-container { display: none; margin-top: 15px; height: 200px; border-top: 1px solid #eee; padding-top: 15px; }
         .weekly-list { display: none; margin-top: 15px; border-top: 1px solid #eee; padding-top: 10px; }
         .day-row { padding: 12px 0; border-bottom: 1px solid #f0f0f0; cursor: pointer; }
-        .day-row:last-child { border: none; }
         .day-flex { display: flex; justify-content: space-between; align-items: center; font-weight: 600; font-size: 16px; }
         .day-graph-box { display: none; height: 180px; margin-top: 10px; padding-top: 10px; }
     </style>
@@ -93,11 +89,15 @@ export async function onRequest(context) {
             plugins: { legend: { display: false } },
             scales: { 
                 y: { beginAtZero: true, grid: { color: '#f5f5f5' }, ticks: { color: '#ccc', font: { size: 10 }, stepSize: 1 } },
-                x: { grid: { display: false }, ticks: { color: '#999', font: { size: 10 } } }
+                x: { grid: { display: false }, ticks: { color: '#999', font: { size: 10 }, maxRotation: 0 } }
             }
         };
 
-        const hours = Array.from({length: 24}, (_, i) => i + ':00');
+        // --- FIX 2: 12-HOUR FORMAT LABELS ---
+        const hours = [
+            "12a", "1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11",
+            "12p", "1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11"
+        ];
 
         new Chart(document.getElementById('todayChart'), {
             type: 'bar',
