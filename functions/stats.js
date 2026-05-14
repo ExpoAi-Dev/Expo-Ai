@@ -10,7 +10,7 @@ export async function onRequest(context) {
   const dateStr = now.toISOString().split('T')[0];
   const monthKey = `monthly_${now.getFullYear()}-${now.getMonth() + 1}`;
 
-  // 1. Fetch data safely
+  // 1. Fetch data
   const todayTotal = await env.USAGE_KV.get(`daily_${dateStr}`) || 0;
   const monthTotal = await env.USAGE_KV.get(monthKey) || 0;
 
@@ -33,7 +33,6 @@ export async function onRequest(context) {
     weeklyRows += `<div style="display:flex;justify-content:space-between;padding:12px 0;border-bottom:1px dotted #ccc;"><span>${day}</span><b>${val}</b></div>`;
   }
 
-  // 2. Define the HTML
   const htmlContent = `<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -42,11 +41,11 @@ export async function onRequest(context) {
     <title>Expoloom AI Analytics</title>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
-        body { font-family: -apple-system, sans-serif; padding: 15px; background: #fff; color: #000; }
+        body { font-family: -apple-system, sans-serif; padding: 15px; background: #fff; color: #000; -webkit-tap-highlight-color: transparent; }
         .card { border: 1px solid #000; padding: 20px; border-radius: 15px; margin-bottom: 15px; cursor: pointer; }
         h3 { margin: 0; font-size: 12px; text-transform: uppercase; color: #666; letter-spacing: 1px; }
         .count { font-size: 32px; font-weight: bold; margin: 5px 0; }
-        .graph-container { display: none; margin-top: 15px; height: 180px; border-top: 1px solid #eee; padding-top: 10px; }
+        .graph-container { display: none; margin-top: 15px; height: 200px; border-top: 1px solid #eee; padding-top: 10px; }
         details { border: 1px solid #000; border-radius: 15px; padding: 15px; margin-bottom: 15px; }
         summary { font-weight: bold; cursor: pointer; display: flex; justify-content: space-between; align-items: center; list-style: none; }
         summary::after { content: "v"; font-size: 12px; }
@@ -58,8 +57,10 @@ export async function onRequest(context) {
     <div class="card" onclick="toggleGraph('todayGraph')">
         <h3>Today's Usage</h3>
         <div class="count">${todayTotal}</div>
-        <div style="font-size: 11px; color: #888;">Tap for hourly graph</div>
-        <div id="todayGraph" class="graph-container"><canvas id="todayChart"></canvas></div>
+        <div style="font-size: 11px; color: #888;">Tap for hourly breakdown</div>
+        <div id="todayGraph" class="graph-container" onclick="event.stopPropagation()">
+            <canvas id="todayChart"></canvas>
+        </div>
     </div>
 
     <details>
@@ -71,7 +72,9 @@ export async function onRequest(context) {
         <h3>Monthly Total</h3>
         <div class="count">${monthTotal}</div>
         <div style="font-size: 11px; color: #888;">Tap for daily breakdown</div>
-        <div id="monthGraph" class="graph-container"><canvas id="monthChart"></canvas></div>
+        <div id="monthGraph" class="graph-container" onclick="event.stopPropagation()">
+            <canvas id="monthChart"></canvas>
+        </div>
     </div>
 
     <a href="/admin" style="display:block; text-align:center; margin-top:30px; color:#999; text-decoration:none; font-size:14px;">Logout</a>
@@ -82,39 +85,47 @@ export async function onRequest(context) {
             el.style.display = el.style.display === 'block' ? 'none' : 'block';
         }
 
+        // Today Chart - Changed to BAR for the "Square" look
         new Chart(document.getElementById('todayChart'), {
-            type: 'line',
+            type: 'bar',
             data: {
                 labels: Array.from({length: 24}, (_, i) => i + ':00'),
                 datasets: [{ 
-                    label: 'Requests', 
+                    label: 'Usage', 
                     data: [${hourlyData.join(',')}], 
-                    borderColor: '#000', 
-                    tension: 0.3,
-                    fill: true,
-                    backgroundColor: 'rgba(0,0,0,0.05)'
+                    backgroundColor: '#000',
+                    borderRadius: 4
                 }]
             },
-            options: { maintainAspectRatio: false, plugins: { legend: { display: false } } }
+            options: { 
+                maintainAspectRatio: false, 
+                plugins: { legend: { display: false } },
+                scales: { y: { beginAtZero: true, ticks: { stepSize: 1 } } }
+            }
         });
 
+        // Month Chart - Bar
         new Chart(document.getElementById('monthChart'), {
             type: 'bar',
             data: {
                 labels: Array.from({length: 31}, (_, i) => i + 1),
                 datasets: [{ 
-                    label: 'Requests', 
+                    label: 'Daily', 
                     data: [${monthlyData.join(',')}], 
-                    backgroundColor: '#000'
+                    backgroundColor: '#000',
+                    borderRadius: 2
                 }]
             },
-            options: { maintainAspectRatio: false, plugins: { legend: { display: false } } }
+            options: { 
+                maintainAspectRatio: false, 
+                plugins: { legend: { display: false } },
+                scales: { y: { beginAtZero: true } }
+            }
         });
     </script>
 </body>
 </html>`;
 
-  // 3. Return the response
   return new Response(htmlContent, {
     headers: { "Content-Type": "text/html; charset=utf-8" }
   });
