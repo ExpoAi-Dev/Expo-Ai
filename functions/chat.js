@@ -31,16 +31,18 @@ export async function onRequest(context) {
 
     const botText = data.candidates?.[0]?.content?.parts?.[0]?.text || "I'm sorry, I couldn't generate a response.";
 
-    // --- ADVANCED KV COUNTER START ---
+    // --- ENHANCED KV COUNTER FOR GRAPHS ---
     try {
       const now = new Date();
       
-      // 1. Get Date Strings for Keys
-      const todayKey = `daily_${now.toISOString().split('T')[0]}`; // e.g., daily_2026-05-14
-      const monthKey = `monthly_${now.getFullYear()}-${now.getMonth() + 1}`; // e.g., monthly_2026-5
+      // 1. Keys for Time-Based Tracking
+      const dateStr = now.toISOString().split('T')[0]; // 2026-05-14
+      const hour = now.getHours(); // 0 to 23
+      const dayOfMonth = now.getDate(); // 1 to 31
+      const monthKey = `monthly_${now.getFullYear()}-${now.getMonth() + 1}`;
+      
       const dayNames = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
-      const dayName = dayNames[now.getDay()]; // e.g., Monday
-      const weekKey = `weekly_${dayName}`;
+      const dayName = dayNames[now.getDay()];
 
       // Helper function to increment a key
       async function increment(key) {
@@ -48,19 +50,21 @@ export async function onRequest(context) {
         await env.USAGE_KV.put(key, (parseInt(val) + 1).toString());
       }
 
-      // 2. Run all increments
-      await increment(todayKey);
-      await increment(monthKey);
-      await increment(weekKey);
+      // 2. Execute Increments
+      await increment(`daily_${dateStr}`);              // For Today's Total
+      await increment(`hourly_${dateStr}_${hour}`);     // For Today's Line Graph
+      await increment(`weekly_${dayName}`);             // For Weekly Menu
+      await increment(monthKey);                        // For Monthly Total
+      await increment(`daycount_${monthKey}_${dayOfMonth}`); // For Monthly Bar Graph
       
-      // Also keep your original total count if you want it
+      // Original total tracker
       const total = await env.USAGE_KV.get("gemini_count") || 0;
       await env.USAGE_KV.put("gemini_count", (parseInt(total) + 1).toString());
 
     } catch (kvErr) {
       console.log("KV Storage Error:", kvErr.message);
     }
-    // --- ADVANCED KV COUNTER END ---
+    // --- END ENHANCED COUNTER ---
 
     const streamData = `data: ${JSON.stringify({ choices: [{ delta: { content: botText } }] })}\n\ndata: [DONE]\n\n`;
     
