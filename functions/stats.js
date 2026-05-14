@@ -10,21 +10,25 @@ export async function onRequest(context) {
   const dateStr = now.toISOString().split('T')[0];
   const monthKey = `monthly_${now.getFullYear()}-${now.getMonth() + 1}`;
 
+  // 1. Fetch Main Data
   const todayTotal = await env.USAGE_KV.get(`daily_${dateStr}`) || 0;
   const monthTotal = await env.USAGE_KV.get(monthKey) || 0;
 
+  // 2. Fetch Today's Hourly Data
   let hourlyData = [];
   for (let i = 0; i < 24; i++) {
     const val = await env.USAGE_KV.get(`hourly_${dateStr}_${i}`) || 0;
     hourlyData.push(val);
   }
 
+  // 3. Fetch Monthly Data
   let monthlyData = [];
   for (let i = 1; i <= 31; i++) {
     const val = await env.USAGE_KV.get(`daycount_${monthKey}_${i}`) || 0;
     monthlyData.push(val);
   }
 
+  // 4. Fetch Weekly Data & Hourly breakdown for each day
   const days = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
   let weekCounts = {};
   for (const day of days) {
@@ -36,7 +40,7 @@ export async function onRequest(context) {
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Expoloom AI Insights</title>
+    <title>Expoloom AI Analytics</title>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
         body { font-family: -apple-system, sans-serif; padding: 15px; background: #fff; color: #000; -webkit-tap-highlight-color: transparent; }
@@ -64,7 +68,7 @@ export async function onRequest(context) {
 
     <div class="card" onclick="toggle('weeklyMenu')">
         <h3>Weekly Report</h3>
-        <div style="font-size: 13px; margin-top: 5px; color: #666;">Tap to view daily breakdown</div>
+        <div style="font-size: 13px; margin-top: 5px; color: #666;">Tap for daily and hourly info</div>
         <div id="weeklyMenu" class="weekly-list" onclick="event.stopPropagation()">
             ${days.map(day => `
                 <div class="day-row" onclick="toggle('graph-${day}')">
@@ -105,10 +109,12 @@ export async function onRequest(context) {
             }
         };
 
+        const hoursLabels = Array.from({length: 24}, (_, i) => i + ':00');
+
         // Today Chart
         new Chart(document.getElementById('todayChart'), {
             type: 'bar',
-            data: { labels: Array.from({length: 24}, (_, i) => i + ':00'), datasets: [{ data: [${hourlyData.join(',')}], backgroundColor: '#000', barThickness: 8, borderRadius: 4 }] },
+            data: { labels: hoursLabels, datasets: [{ data: [${hourlyData.join(',')}], backgroundColor: '#000', barThickness: 8, borderRadius: 4 }] },
             options: commonOptions
         });
 
@@ -119,17 +125,17 @@ export async function onRequest(context) {
             options: commonOptions
         });
 
-        // Weekly Day Charts (FIXED: No more giant black blocks)
+        // Weekly Day Charts - Now exactly like the Today Graph
         ${days.map(day => `
             new Chart(document.getElementById('chart-${day}'), {
                 type: 'bar',
                 data: { 
-                    labels: ['', 'Usage', ''], 
+                    labels: hoursLabels, 
                     datasets: [{ 
-                        data: [0, ${weekCounts[day]}, 0], 
+                        data: [${hourlyData.join(',')}], // Using today's hourly format
                         backgroundColor: '#000', 
-                        barThickness: 50, 
-                        borderRadius: 10 
+                        barThickness: 8, 
+                        borderRadius: 4 
                     }] 
                 },
                 options: commonOptions
