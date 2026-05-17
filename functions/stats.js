@@ -75,8 +75,8 @@ export async function onRequest(context) {
 
           // Build item formatting for the "Live Device Activity" section
           if (deviceLogs.length < 50) {
-            // FIXED: Uses raw database timestamp context evaluated explicitly against Asia/Kolkata rules
-            const timeFormatted = logDate.toLocaleTimeString('en-IN', {
+            // FIX: Re-instantiate directly from raw database value to wipe out double time shifts
+            const timeFormatted = new Date(log.created_at).toLocaleTimeString('en-IN', {
               hour: '2-digit',
               minute: '2-digit',
               second: '2-digit',
