@@ -3,27 +3,93 @@ export async function onRequest(context) {
   const { searchParams } = new URL(request.url);
   if (searchParams.get('key') !== env.ADMIN_KEY) return new Response("Denied", { status: 403 });
 
-  // --- IST TIMEZONE (UTC +5:30) FOR PATNA ---
-  const now = new Date(new Date().getTime() + (5.5 * 60 * 60 * 1000));
-  const dateStr = now.getFullYear() + '-' + String(now.getMonth() + 1).padStart(2, '0') + '-' + String(now.getDate()).padStart(2, '0');
-  const monthKey = `monthly_${now.getFullYear()}-${now.getMonth() + 1}`;
+  // Array of days for formatting references
   const days = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
 
-  // 1. Fetch Today & Monthly Totals along with Device Logs
-  const todayTotal = await env.USAGE_KV.get(`daily_${dateStr}`) || 0;
-  const monthTotal = await env.USAGE_KV.get(monthKey) || 0;
-  const rawDeviceLogs = await env.USAGE_KV.get(`devicelogs_${dateStr}`) || "[]";
-  const deviceLogs = JSON.parse(rawDeviceLogs);
+  let todayTotal = 0;
+  let monthTotal = 0;
+  let deviceLogs = [];
+  
+  // Initialize graphs datasets with 0s
+  let todayHourly = Array(24).fill(0);
+  let monthlyDaily = Array(31).fill(0);
+  let weekTotals = Array(7).fill(0);
+  let weekHourly = Array(7).fill(0).map(() => Array(24).fill(0));
 
-  // 2. Fetch All Graph Data in Parallel
-  const [todayHourly, monthlyDaily, weekTotals, weekHourly] = await Promise.all([
-    Promise.all(Array.from({length: 24}, (_, i) => env.USAGE_KV.get(`hourly_${dateStr}_${i}`).then(v => v || 0))),
-    Promise.all(Array.from({length: 31}, (_, i) => env.USAGE_KV.get(`daycount_${monthKey}_${i+1}`).then(v => v || 0))),
-    Promise.all(days.map(d => env.USAGE_KV.get(`weekly_${d}`).then(v => v || 0))),
-    Promise.all(days.map(d => 
-      Promise.all(Array.from({length: 24}, (_, i) => env.USAGE_KV.get(`weekly_hourly_${d}_${i}`).then(v => v || 0)))
-    ))
-  ]);
+  try {
+    // 1. Fetch ALL logs for the current calendar month from Supabase (Max 5000 records for the analytics engine)
+    const supabaseResponse = await fetch(
+      `${env.SUPABASE_URL}/rest/v1/ai_usage_logs?select=created_at,device_name&order=id.desc&limit=5000`, 
+      {
+        method: 'GET',
+        headers: {
+          'apikey': env.SUPABASE_KEY,
+          'Authorization': `Bearer ${env.SUPABASE_KEY}`
+        }
+      }
+    );
+
+    const logs = await supabaseResponse.json();
+
+    // 2. Parse logs to extract real-time Patna metric states
+    const targetTimeZone = 'Asia/Kolkata';
+    const nowPatna = new Date(new Date().toLocaleString("en-US", { timeZone: targetTimeZone }));
+    
+    const currentYear = nowPatna.getFullYear();
+    const currentMonth = nowPatna.getMonth(); // 0-11
+    const currentDay = nowPatna.getDate();
+
+    logs.forEach(log => {
+      const logDate = new Date(log.created_at);
+      // Convert database timestamp cleanly into individual localized Patna integers
+      const patnaStr = logDate.toLocaleString("en-US", { timeZone: targetTimeZone });
+      const pDate = new Date(patnaStr);
+
+      const pYear = pDate.getFullYear();
+      const pMonth = pDate.getMonth();
+      const pDay = pDate.getDate();
+      const pHour = pDate.getHours();
+
+      // Adjust day of week string index matching standard days array mapping
+      let pDayOfWeek = pDate.getDay() - 1; 
+      if (pDayOfWeek === -1) pDayOfWeek = 6; // Shift Sunday to last element position
+
+      // Evaluate data bounds matches
+      if (pYear === currentYear && pMonth === currentMonth) {
+        // Increment global monthly stats
+        monthTotal++;
+        if (pDay >= 1 && pDay <= 31) {
+          monthlyDaily[pDay - 1]++;
+        }
+
+        // Aggregate running weekly chart distributions
+        if (pDayOfWeek >= 0 && pDayOfWeek < 7) {
+          weekTotals[pDayOfWeek]++;
+          weekHourly[pDayOfWeek][pHour]++;
+        }
+
+        // Aggregate running explicit daily timeline bounds
+        if (pDay === currentDay) {
+          todayTotal++;
+          todayHourly[pHour]++;
+
+          // Build item formatting for the "Live Device Activity" section
+          if (deviceLogs.length < 50) {
+            const timeFormatted = pDate.toLocaleTimeString('en-IN', {
+              hour: '2-digit',
+              minute: '2-digit',
+              second: '2-digit',
+              hour12: true
+            });
+            deviceLogs.push({ time: timeFormatted, device: log.device_name });
+          }
+        }
+      }
+    });
+
+  } catch (err) {
+    console.log("Supabase analytics processing error: ", err.message);
+  }
 
   const htmlContent = `<!DOCTYPE html>
 <html lang="en">
