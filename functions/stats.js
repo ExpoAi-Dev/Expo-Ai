@@ -3,17 +3,19 @@ export async function onRequest(context) {
   const { searchParams } = new URL(request.url);
   if (searchParams.get('key') !== env.ADMIN_KEY) return new Response("Denied", { status: 403 });
 
-  // --- FIX 1: IST TIMEZONE (UTC +5:30) ---
+  // --- IST TIMEZONE (UTC +5:30) FOR PATNA ---
   const now = new Date(new Date().getTime() + (5.5 * 60 * 60 * 1000));
-  const dateStr = now.toISOString().split('T')[0];
+  const dateStr = now.getFullYear() + '-' + String(now.getMonth() + 1).padStart(2, '0') + '-' + String(now.getDate()).padStart(2, '0');
   const monthKey = `monthly_${now.getFullYear()}-${now.getMonth() + 1}`;
   const days = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
 
-  // 1. Fetch Today & Monthly Totals
+  // 1. Fetch Today & Monthly Totals along with Device Logs
   const todayTotal = await env.USAGE_KV.get(`daily_${dateStr}`) || 0;
   const monthTotal = await env.USAGE_KV.get(monthKey) || 0;
+  const rawDeviceLogs = await env.USAGE_KV.get(`devicelogs_${dateStr}`) || "[]";
+  const deviceLogs = JSON.parse(rawDeviceLogs);
 
-  // 2. Fetch All Data in Parallel
+  // 2. Fetch All Graph Data in Parallel
   const [todayHourly, monthlyDaily, weekTotals, weekHourly] = await Promise.all([
     Promise.all(Array.from({length: 24}, (_, i) => env.USAGE_KV.get(`hourly_${dateStr}_${i}`).then(v => v || 0))),
     Promise.all(Array.from({length: 31}, (_, i) => env.USAGE_KV.get(`daycount_${monthKey}_${i+1}`).then(v => v || 0))),
@@ -40,6 +42,13 @@ export async function onRequest(context) {
         .day-row { padding: 12px 0; border-bottom: 1px solid #f0f0f0; cursor: pointer; }
         .day-flex { display: flex; justify-content: space-between; align-items: center; font-weight: 600; font-size: 16px; }
         .day-graph-box { display: none; height: 180px; margin-top: 10px; padding-top: 10px; }
+        
+        /* Device log styles */
+        .logs-container { display: none; margin-top: 15px; border-top: 1px solid #eee; padding-top: 15px; max-height: 250px; overflow-y: auto; }
+        .log-item { display: flex; justify-content: space-between; padding: 10px 5px; border-bottom: 1px solid #f5f5f5; font-size: 14px; }
+        .log-time { font-weight: 700; color: #000; }
+        .log-device { background: #f0f0f0; padding: 2px 8px; border-radius: 6px; font-size: 12px; font-weight: 600; }
+        .no-logs { text-align: center; color: #999; padding: 20px 0; font-size: 14px; }
     </style>
 </head>
 <body>
@@ -50,6 +59,21 @@ export async function onRequest(context) {
         <div class="count">${todayTotal}</div>
         <div id="todayGraph" class="graph-container" onclick="event.stopPropagation()">
             <canvas id="todayChart"></canvas>
+        </div>
+    </div>
+
+    <div class="card" onclick="toggle('liveLogs')">
+        <h3>Live Device Activity (Patna Time)</h3>
+        <div style="font-size: 13px; margin-top: 5px; color: #666;">Tap to see exact times & devices</div>
+        <div id="liveLogs" class="logs-container" onclick="event.stopPropagation()">
+            ${deviceLogs.length === 0 ? `<div class="no-logs">No messages sent yet today</div>` : 
+                deviceLogs.map(log => `
+                    <div class="log-item">
+                        <span class="log-time">${log.time}</span>
+                        <span class="log-device">${log.device}</span>
+                    </div>
+                `).join('')
+            }
         </div>
     </div>
 
@@ -93,7 +117,6 @@ export async function onRequest(context) {
             }
         };
 
-        // --- FIX 2: 12-HOUR FORMAT LABELS ---
         const hours = [
             "12a", "1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11",
             "12p", "1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11"
