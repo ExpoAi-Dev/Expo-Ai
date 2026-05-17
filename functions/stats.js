@@ -75,11 +75,13 @@ export async function onRequest(context) {
 
           // Build item formatting for the "Live Device Activity" section
           if (deviceLogs.length < 50) {
-            const timeFormatted = pDate.toLocaleTimeString('en-IN', {
+            // FIXED: Uses raw database timestamp context evaluated explicitly against Asia/Kolkata rules
+            const timeFormatted = logDate.toLocaleTimeString('en-IN', {
               hour: '2-digit',
               minute: '2-digit',
               second: '2-digit',
-              hour12: true
+              hour12: true,
+              timeZone: targetTimeZone
             });
             deviceLogs.push({ time: timeFormatted, device: log.device_name });
           }
