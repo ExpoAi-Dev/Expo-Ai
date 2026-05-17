@@ -31,42 +31,66 @@ export async function onRequest(context) {
 
     const botText = data.candidates?.[0]?.content?.parts?.[0]?.text || "I'm sorry, I couldn't generate a response.";
 
-    // --- ENHANCED KV COUNTER FOR GRAPHS ---
+        // --- ENHANCED KV COUNTER WITH PATNA DEVICE TRACKING ---
     try {
-      const now = new Date();
+      // Create explicit Patna, Bihar local time
+      const patnaDate = new Date(new Date().toLocaleString("en-US", { timeZone: "Asia/Kolkata" }));
       
-      const dateStr = now.toISOString().split('T')[0]; 
-      const hour = now.getHours(); 
-      const dayOfMonth = now.getDate(); 
-      const monthKey = `monthly_${now.getFullYear()}-${now.getMonth() + 1}`;
+      const dateStr = patnaDate.getFullYear() + '-' + String(patnaDate.getMonth() + 1).padStart(2, '0') + '-' + String(patnaDate.getDate()).padStart(2, '0');
+      const hour = patnaDate.getHours(); 
+      const dayOfMonth = patnaDate.getDate(); 
+      const monthKey = `monthly_${patnaDate.getFullYear()}-${patnaDate.getMonth() + 1}`;
       
       const dayNames = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
-      const dayName = dayNames[now.getDay()];
+      const dayName = dayNames[patnaDate.getDay()];
 
       async function increment(key) {
         const val = await env.USAGE_KV.get(key) || 0;
         await env.USAGE_KV.put(key, (parseInt(val) + 1).toString());
       }
 
-      // Trackers
-      await increment(`daily_${dateStr}`);              // Today's Total
-      await increment(`hourly_${dateStr}_${hour}`);     // Today's Hourly Graph
-      await increment(`weekly_${dayName}`);             // Weekly Total Row
-      
-      // FIX: This tracks the specific hour for the specific day (e.g., Monday at 2PM)
+      // Standard graph tracking
+      await increment(`daily_${dateStr}`);              
+      await increment(`hourly_${dateStr}_${hour}`);     
+      await increment(`weekly_${dayName}`);             
       await increment(`weekly_hourly_${dayName}_${hour}`); 
+      await increment(monthKey);                        
+      await increment(`daycount_${monthKey}_${dayOfMonth}`); 
       
-      await increment(monthKey);                        // Monthly Total
-      await increment(`daycount_${monthKey}_${dayOfMonth}`); // Monthly Bar Graph
-      
-      // Global total
       const total = await env.USAGE_KV.get("gemini_count") || 0;
       await env.USAGE_KV.put("gemini_count", (parseInt(total) + 1).toString());
+
+      // DEVICE & ACCURATE LOG TRACKING
+      const rawDevice = request.headers.get('user-agent') || 'Unknown Device';
+      let deviceName = "PC / Laptop";
+      if (rawDevice.includes('iPad')) deviceName = "iPad";
+      else if (rawDevice.includes('iPhone')) deviceName = "iPhone";
+      else if (rawDevice.includes('Android')) {
+        deviceName = rawDevice.includes('Mobile') ? "Android Phone" : "Android Tablet";
+      }
+
+      const accurateTimeStr = patnaDate.toLocaleTimeString('en-IN', {
+        hour: '2-digit',
+        minute: '2-digit',
+        second: '2-digit',
+        hour12: true
+      });
+
+      // Fetch existing logs list for today, keep last 50 entries
+      const logKey = `devicelogs_${dateStr}`;
+      const existingLogsRaw = await env.USAGE_KV.get(logKey) || "[]";
+      const logsArray = JSON.parse(existingLogsRaw);
+      
+      logsArray.unshift({ time: accurateTimeStr, device: deviceName });
+      if (logsArray.length > 50) logsArray.pop(); // Keep it clean and optimized
+
+      await env.USAGE_KV.put(logKey, JSON.stringify(logsArray));
 
     } catch (kvErr) {
       console.log("KV Storage Error:", kvErr.message);
     }
     // --- END ENHANCED COUNTER ---
+
 
     const streamData = `data: ${JSON.stringify({ choices: [{ delta: { content: botText } }] })}\n\ndata: [DONE]\n\n`;
     
