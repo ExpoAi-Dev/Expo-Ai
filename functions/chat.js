@@ -31,36 +31,8 @@ export async function onRequest(context) {
 
     const botText = data.candidates?.[0]?.content?.parts?.[0]?.text || "I'm sorry, I couldn't generate a response.";
 
-        // --- ENHANCED KV COUNTER WITH PATNA DEVICE TRACKING ---
+    // --- UNLIMITED SUPABASE LOGGING ---
     try {
-      // Create explicit Patna, Bihar local time
-      const patnaDate = new Date(new Date().toLocaleString("en-US", { timeZone: "Asia/Kolkata" }));
-      
-      const dateStr = patnaDate.getFullYear() + '-' + String(patnaDate.getMonth() + 1).padStart(2, '0') + '-' + String(patnaDate.getDate()).padStart(2, '0');
-      const hour = patnaDate.getHours(); 
-      const dayOfMonth = patnaDate.getDate(); 
-      const monthKey = `monthly_${patnaDate.getFullYear()}-${patnaDate.getMonth() + 1}`;
-      
-      const dayNames = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
-      const dayName = dayNames[patnaDate.getDay()];
-
-      async function increment(key) {
-        const val = await env.USAGE_KV.get(key) || 0;
-        await env.USAGE_KV.put(key, (parseInt(val) + 1).toString());
-      }
-
-      // Standard graph tracking
-      await increment(`daily_${dateStr}`);              
-      await increment(`hourly_${dateStr}_${hour}`);     
-      await increment(`weekly_${dayName}`);             
-      await increment(`weekly_hourly_${dayName}_${hour}`); 
-      await increment(monthKey);                        
-      await increment(`daycount_${monthKey}_${dayOfMonth}`); 
-      
-      const total = await env.USAGE_KV.get("gemini_count") || 0;
-      await env.USAGE_KV.put("gemini_count", (parseInt(total) + 1).toString());
-
-      // DEVICE & ACCURATE LOG TRACKING
       const rawDevice = request.headers.get('user-agent') || 'Unknown Device';
       let deviceName = "PC / Laptop";
       if (rawDevice.includes('iPad')) deviceName = "iPad";
@@ -69,28 +41,22 @@ export async function onRequest(context) {
         deviceName = rawDevice.includes('Mobile') ? "Android Phone" : "Android Tablet";
       }
 
-      const accurateTimeStr = patnaDate.toLocaleTimeString('en-IN', {
-        hour: '2-digit',
-        minute: '2-digit',
-        second: '2-digit',
-        hour12: true
+      // Send log to Supabase via a clean HTTP POST fetch
+      await fetch(`${env.SUPABASE_URL}/rest/v1/ai_usage_logs`, {
+        method: 'POST',
+        headers: {
+          'apikey': env.SUPABASE_KEY,
+          'Authorization': `Bearer ${env.SUPABASE_KEY}`,
+          'Content-Type': 'application/json',
+          'Prefer': 'return=minimal'
+        },
+        body: JSON.stringify({ device_name: deviceName })
       });
 
-      // Fetch existing logs list for today, keep last 50 entries
-      const logKey = `devicelogs_${dateStr}`;
-      const existingLogsRaw = await env.USAGE_KV.get(logKey) || "[]";
-      const logsArray = JSON.parse(existingLogsRaw);
-      
-      logsArray.unshift({ time: accurateTimeStr, device: deviceName });
-      if (logsArray.length > 50) logsArray.pop(); // Keep it clean and optimized
-
-      await env.USAGE_KV.put(logKey, JSON.stringify(logsArray));
-
-    } catch (kvErr) {
-      console.log("KV Storage Error:", kvErr.message);
+    } catch (sbErr) {
+      console.log("Supabase Logging Error:", sbErr.message);
     }
-    // --- END ENHANCED COUNTER ---
-
+    // --- END SUPABASE LOGGING ---
 
     const streamData = `data: ${JSON.stringify({ choices: [{ delta: { content: botText } }] })}\n\ndata: [DONE]\n\n`;
     
