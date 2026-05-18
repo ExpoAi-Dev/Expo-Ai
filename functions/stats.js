@@ -75,13 +75,12 @@ export async function onRequest(context) {
 
           // Build item formatting for the "Live Device Activity" section
           if (deviceLogs.length < 50) {
-            // FIXED: Generate the display clock string safely without touching internal mutated Date tracking instances
+            // FIXED: Removed the redundant hardcoded timeZone parameter to stop the +5:30 double-addition error
             const timeFormatted = new Date(log.created_at).toLocaleTimeString('en-IN', {
               hour: '2-digit',
               minute: '2-digit',
               second: '2-digit',
-              hour12: true,
-              timeZone: 'Asia/Kolkata'
+              hour12: true
             });
             deviceLogs.push({ time: timeFormatted, device: log.device_name });
           }
@@ -164,7 +163,7 @@ export async function onRequest(context) {
         <h3>Monthly Total</h3>
         <div class="count">${monthTotal}</div>
         <div id="monthGraph" class="graph-container" onclick="event.stopPropagation()">
-            <canvas id="monthChart"/>
+            <canvas id="monthChart"></canvas>
         </div>
     </div>
 
