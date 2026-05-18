@@ -75,13 +75,13 @@ export async function onRequest(context) {
 
           // Build item formatting for the "Live Device Activity" section
           if (deviceLogs.length < 50) {
-            // FIX: Re-instantiate directly from raw database value to wipe out double time shifts
+            // FIXED: Generate the display clock string safely without touching internal mutated Date tracking instances
             const timeFormatted = new Date(log.created_at).toLocaleTimeString('en-IN', {
               hour: '2-digit',
               minute: '2-digit',
               second: '2-digit',
               hour12: true,
-              timeZone: targetTimeZone
+              timeZone: 'Asia/Kolkata'
             });
             deviceLogs.push({ time: timeFormatted, device: log.device_name });
           }
@@ -164,7 +164,7 @@ export async function onRequest(context) {
         <h3>Monthly Total</h3>
         <div class="count">${monthTotal}</div>
         <div id="monthGraph" class="graph-container" onclick="event.stopPropagation()">
-            <canvas id="monthChart"></canvas>
+            <canvas id="monthChart"/>
         </div>
     </div>
 
