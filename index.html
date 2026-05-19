@@ -37,9 +37,16 @@
       display: flex;
       flex-direction: column; 
       height: 100dvh; 
-      transition: transform 0.3s ease;
+      transition: transform 0.3s ease, margin-left 0.3s ease;
       z-index: 20;
     }
+    
+    /* Desktop state: Hide sidebar by sliding left and pulling content */
+    .sidebar.closed {
+      transform: translateX(-100%);
+      margin-right: -260px;
+    }
+
     .sidebar-header { display: none; align-items: center; margin-bottom: 5px; }
     .divider { height: 1px; background: var(--text-color); opacity: 0.3; margin: 8px 0; }
     .recent-label { font-size: 13px; opacity: 0.7; margin: 5px 8px; }
@@ -70,7 +77,10 @@
 
     .main { flex: 1; display: flex; flex-direction: column; width: 100%; overflow: hidden;}
     .header { display: flex; justify-content: space-between; align-items: center; padding: 10px; background: var(--header-bg); font-weight: bold; border-bottom: 1px solid rgba(0,0,0,0.05); position: relative; }
-    .menu-btn { font-size: 22px; cursor: pointer; display: none; }
+    
+    /* Always display menu button on all viewports */
+    .menu-btn { font-size: 22px; cursor: pointer; display: block; margin-right: 10px; }
+    
     .profile-btn { width: 35px; height: 35px; border-radius: 50%; background: var(--accent-blue); display: flex; align-items: center; justify-content: center; color: white; cursor: pointer; }
     
     .account-panel { position: absolute; top: 60px; right: 10px; background: var(--header-bg); padding: 15px; border-radius: 12px; display: none; border: 1px solid rgba(128,128,128,0.3); z-index: 100; box-shadow: 0 8px 16px rgba(0,0,0,0.2); min-width: 200px; }
@@ -197,7 +207,7 @@
     @media (max-width: 768px) {
       .sidebar { position: fixed; transform: translateX(-100%); left: 0; top: 0; }
       .sidebar.open { transform: translateX(0); }
-      .menu-btn { display: block; }
+      .sidebar.closed { transform: translateX(-100%); margin-right: 0; }
       .sidebar-header { display: flex; }
     }
   </style>
@@ -403,7 +413,17 @@ function toggleVoice() {
 function save() { localStorage.setItem("chats", JSON.stringify(chats)); localStorage.setItem("lastChatId", currentChat); }
 function autoExpand(t) { t.style.height = 'auto'; t.style.height = t.scrollHeight + 'px'; }
 
-function toggleMenu() { document.getElementById("sidebar").classList.toggle("open"); }
+function toggleMenu() {
+  const sidebar = document.getElementById("sidebar");
+  if (window.innerWidth > 768) {
+    sidebar.classList.toggle("closed");
+    sidebar.classList.remove("open");
+  } else {
+    sidebar.classList.toggle("open");
+    sidebar.classList.remove("closed");
+  }
+}
+
 function toggleDarkMode() { document.body.classList.toggle("dark-theme", document.getElementById("darkModeCheckbox").checked); }
 function toggleAccount(e) { e.stopPropagation(); const p = document.getElementById("accountPanel"); p.style.display = (p.style.display === "block") ? "none" : "block"; }
 
@@ -518,7 +538,6 @@ async function askAI() {
     const contentType = res.headers.get("content-type");
     removeLoading();
 
-    // Handle Standard JSON (Images or non-streamed responses)
     if (contentType && contentType.includes("application/json")) {
       const data = await res.json();
       if (res.ok) {
@@ -532,12 +551,10 @@ async function askAI() {
         }
       } else { throw new Error(); }
     } 
-    // Handle SSE Stream
     else if (res.ok && res.body) {
       const reader = res.body.getReader();
       const decoder = new TextDecoder();
       
-      // Create a persistent model message object
       let botMessage = { role: "model", parts: [{ text: "" }] };
       chats[currentChat].messages.push(botMessage);
 
@@ -554,7 +571,7 @@ async function askAI() {
               const data = JSON.parse(line.substring(6));
               const content = data.choices[0]?.delta?.content || "";
               botMessage.parts[0].text += content;
-              renderMessages(); // Live UI Update
+              renderMessages(); 
             } catch (e) {
               console.error("Chunk parsing error", e);
             }
