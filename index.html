@@ -47,8 +47,18 @@
       margin-right: -260px;
     }
 
-    .sidebar-header { display: none; align-items: center; margin-bottom: 5px; }
-    .sidebar-top-row { display: flex; justify-content: space-between; align-items: center; padding: 5px 8px; position: relative; }
+    .sidebar-header { display: block; font-size: 16px; font-weight: bold; color: var(--text-color); }
+    
+    /* Clean Row Layout for Brand Title + Profile Button */
+    .sidebar-top-row { 
+      display: flex; 
+      justify-content: space-between; 
+      align-items: center; 
+      padding: 10px 8px; 
+      position: relative; 
+      min-height: 50px;
+    }
+    
     .divider { height: 1px; background: var(--text-color); opacity: 0.3; margin: 8px 0; }
     .recent-label { font-size: 13px; opacity: 0.7; margin: 5px 8px; }
     
@@ -82,9 +92,35 @@
     /* Always display menu button on all viewports */
     .menu-btn { font-size: 22px; cursor: pointer; display: block; margin-right: 10px; }
     
-    .profile-btn { width: 35px; height: 35px; border-radius: 50%; background: var(--accent-blue); display: flex; align-items: center; justify-content: center; color: white; cursor: pointer; }
+    /* Profile styling optimized for dark and light views inside the sidebar */
+    .profile-btn { 
+      width: 32px; 
+      height: 32px; 
+      border-radius: 50%; 
+      background: var(--accent-blue); 
+      display: flex; 
+      align-items: center; 
+      justify-content: center; 
+      color: white; 
+      cursor: pointer; 
+      font-size: 14px;
+      user-select: none;
+    }
     
-    .account-panel { position: absolute; top: 45px; left: 10px; background: var(--header-bg); padding: 15px; border-radius: 12px; display: none; border: 1px solid rgba(128,128,128,0.3); z-index: 100; box-shadow: 0 8px 16px rgba(0,0,0,0.2); min-width: 200px; }
+    /* Perfect absolute positioning dropdown panel targeting within the sidebar container boundaries */
+    .account-panel { 
+      position: absolute; 
+      top: 52px; 
+      left: 8px; 
+      background: var(--header-bg); 
+      padding: 15px; 
+      border-radius: 12px; 
+      display: none; 
+      border: 1px solid rgba(128,128,128,0.3); 
+      z-index: 100; 
+      box-shadow: 0 8px 16px rgba(0,0,0,0.3); 
+      min-width: 220px; 
+    }
 
     .chat-box { flex: 1; overflow-y: auto; padding: 10px; display: flex; flex-direction: column; scroll-behavior: smooth; }
     .message { margin: 10px 0; padding: 12px 16px; border-radius: 15px; max-width: 85%; word-break: break-word; line-height: 1.5; font-size: 15px; }
@@ -209,7 +245,6 @@
       .sidebar { position: fixed; transform: translateX(-100%); left: 0; top: 0; }
       .sidebar.open { transform: translateX(0); }
       .sidebar.closed { transform: translateX(-100%); margin-right: 0; }
-      .sidebar-header { display: flex; }
     }
   </style>
 </head>
@@ -260,14 +295,14 @@
 
 <div id="sidebar" class="sidebar">
   <div class="sidebar-top-row">
-    <div class="sidebar-header" style="display: block; margin-bottom: 0;"><b>Expoloom AI</b></div>
+    <div class="sidebar-header"><b>Expoloom AI</b></div>
     <div class="profile-btn" onclick="toggleAccount(event)">👤</div>
     
     <div id="accountPanel" class="account-panel">
-      <p style="margin-top:0;">👤 <b>Account</b></p>
+      <p style="margin-top:0; color: var(--text-color);">👤 <b>Account</b></p>
       <div class="divider" style="background:gray; opacity:0.2;"></div>
-      <p style="font-size:13px; opacity:0.8; margin-bottom:5px;">User ID: exp_012</p>
-      <p style="font-size:12px; opacity:0.6;">user@expoloom.com</p>
+      <p style="font-size:13px; opacity:0.8; margin-bottom:5px; color: var(--text-color);">User ID: exp_012</p>
+      <p style="font-size:12px; opacity:0.6; color: var(--text-color);">user@expoloom.com</p>
     </div>
   </div>
   <div class="divider"></div>
@@ -431,28 +466,96 @@ function toggleMenu() {
 function toggleDarkMode() { document.body.classList.toggle("dark-theme", document.getElementById("darkModeCheckbox").checked); }
 function toggleAccount(e) { e.stopPropagation(); const p = document.getElementById("accountPanel"); p.style.display = (p.style.display === "block") ? "none" : "block"; }
 
+// Helper function to safely transform incoming ISO/UTC database strings into standard timestamps
+function getLocalTimestamp(ts) {
+  if (!ts) return Date.now();
+  if (typeof ts === 'string') {
+    let cleanTs = ts.replace(" ", "T");
+    let d = new Date(cleanTs);
+    return isNaN(d.getTime()) ? Date.now() : d.getTime();
+  }
+  return ts;
+}
+
 function renderChats() {
   const list = document.getElementById("chatList");
   list.innerHTML = "";
+  
+  // Create bucket containers to cleanly group items by local timestamps
+  const buckets = {
+    today: [],
+    yesterday: [],
+    weekly: {},
+    monthly: {}
+  };
+
+  const now = new Date();
+  const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+  const startOfYesterday = startOfToday - (24 * 60 * 60 * 1000);
+  const startOfSevenDaysAgo = startOfToday - (6 * 24 * 60 * 60 * 1000);
+
   const sortedEntries = Object.entries(chats).sort((a, b) => {
     if (a[1].pinned && !b[1].pinned) return -1;
     if (!a[1].pinned && b[1].pinned) return 1;
-    return a[1].timestamp - b[1].timestamp;
+    return getLocalTimestamp(b[1].timestamp) - getLocalTimestamp(a[1].timestamp);
   });
 
   sortedEntries.forEach(([id, chat]) => {
-    const div = document.createElement("div");
-    div.className = "chat-item" + (id === currentChat ? " active" : "");
-    const pinLabel = chat.pinned ? "📌 " : "";
-    div.innerHTML = `
-      <div class="chat-name" onclick="switchChat('${id}')">${pinLabel}${chat.name}</div>
-      <div class="dots" onclick="openChatMenu(event, '${id}')">⋮</div>
-      <div id="menu-${id}" class="chat-menu">
-        <div onclick="togglePin('${id}')">${chat.pinned ? 'Unpin' : 'Pin'}</div>
-        <div onclick="renameChat('${id}')">Rename</div>
-        <div onclick="deleteChat('${id}')">Delete</div>
-      </div>`;
-    list.appendChild(div);
+    const chatTime = getLocalTimestamp(chat.timestamp);
+    const chatDate = new Date(chatTime);
+
+    if (chatTime >= startOfToday) {
+      buckets.today.push({ id, chat });
+    } else if (chatTime >= startOfYesterday) {
+      buckets.yesterday.push({ id, chat });
+    } else if (chatTime >= startOfSevenDaysAgo) {
+      const weekday = chatDate.toLocaleDateString('en-US', { weekday: 'long' });
+      if (!buckets.weekly[weekday]) buckets.weekly[weekday] = [];
+      buckets.weekly[weekday].push({ id, chat });
+    } else {
+      const monthYear = chatDate.toLocaleDateString('en-US', { day: 'numeric', month: 'long' });
+      if (!buckets.monthly[monthYear]) buckets.monthly[monthYear] = [];
+      buckets.monthly[monthYear].push({ id, chat });
+    }
+  });
+
+  const appendHeader = (text) => {
+    const lbl = document.createElement("div");
+    lbl.className = "recent-label";
+    lbl.style.fontWeight = "bold";
+    lbl.style.marginTop = "12px";
+    lbl.innerText = text;
+    list.appendChild(lbl);
+  };
+
+  const appendChatItems = (items) => {
+    items.forEach(({ id, chat }) => {
+      const div = document.createElement("div");
+      div.className = "chat-item" + (id === currentChat ? " active" : "");
+      const pinLabel = chat.pinned ? "📌 " : "";
+      div.innerHTML = `
+        <div class="chat-name" onclick="switchChat('${id}')">${pinLabel}${chat.name}</div>
+        <div class="dots" onclick="openChatMenu(event, '${id}')">⋮</div>
+        <div id="menu-${id}" class="chat-menu">
+          <div onclick="togglePin('${id}')">${chat.pinned ? 'Unpin' : 'Pin'}</div>
+          <div onclick="renameChat('${id}')">Rename</div>
+          <div onclick="deleteChat('${id}')">Delete</div>
+        </div>`;
+      list.appendChild(div);
+    });
+  };
+
+  if (buckets.today.length > 0) { appendHeader("Today"); appendChatItems(buckets.today); }
+  if (buckets.yesterday.length > 0) { appendHeader("Yesterday"); appendChatItems(buckets.yesterday); }
+  
+  Object.keys(buckets.weekly).forEach(day => {
+    appendHeader(day);
+    appendChatItems(buckets.weekly[day]);
+  });
+
+  Object.keys(buckets.monthly).forEach(monthGroup => {
+    appendHeader(monthGroup);
+    appendChatItems(buckets.monthly[monthGroup]);
   });
 }
 
@@ -593,6 +696,9 @@ async function askAI() {
     removeLoading();
     chats[currentChat].messages.push({ role: "model", parts: [{ text: "Expoloom AI is temporarily unavailable. Please try again." }] });
   }
+  
+  // Formats server timestamp updates flawlessly into the local frontend timeline
+  chats[currentChat].timestamp = Date.now();
   save(); renderMessages(); renderChats();
 }
 
