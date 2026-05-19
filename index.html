@@ -466,15 +466,41 @@ function toggleMenu() {
 function toggleDarkMode() { document.body.classList.toggle("dark-theme", document.getElementById("darkModeCheckbox").checked); }
 function toggleAccount(e) { e.stopPropagation(); const p = document.getElementById("accountPanel"); p.style.display = (p.style.display === "block") ? "none" : "block"; }
 
-// Helper function to safely transform incoming ISO/UTC database strings into standard timestamps
+// Helper function to safely transform incoming ISO/UTC database strings into standard local epoch timestamps
 function getLocalTimestamp(ts) {
   if (!ts) return Date.now();
+  if (typeof ts === 'number') return ts;
+  
   if (typeof ts === 'string') {
-    let cleanTs = ts.replace(" ", "T");
+    let cleanTs = ts.trim();
+    // Normalizes space separations to ISO standard 'T'
+    cleanTs = cleanTs.replace(" ", "T");
+    
+    // Safely handles microsecond strings like ".344167+00" or ".344167Z"
+    // Extracts up to 3 fractional millisecond digits so mobile platforms/Safari don't break
+    const dotIndex = cleanTs.lastIndexOf(".");
+    if (dotIndex !== -1) {
+      let base = cleanTs.substring(0, dotIndex);
+      let rest = cleanTs.substring(dotIndex + 1);
+      
+      // Separate digits from timezone markers (like +00, -, Z)
+      let digits = "";
+      let tzMarker = "";
+      for (let i = 0; i < rest.length; i++) {
+        if (/[0-9]/.test(rest[i])) {
+          digits += rest[i];
+        } else {
+          tzMarker = rest.substring(i);
+          break;
+        }
+      }
+      cleanTs = base + "." + digits.substring(0, 3) + tzMarker;
+    }
+    
     let d = new Date(cleanTs);
     return isNaN(d.getTime()) ? Date.now() : d.getTime();
   }
-  return ts;
+  return Date.now();
 }
 
 function renderChats() {
@@ -490,6 +516,7 @@ function renderChats() {
   };
 
   const now = new Date();
+  // Get absolute local calendar day cutoffs
   const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
   const startOfYesterday = startOfToday - (24 * 60 * 60 * 1000);
   const startOfSevenDaysAgo = startOfToday - (6 * 24 * 60 * 60 * 1000);
@@ -503,12 +530,15 @@ function renderChats() {
   sortedEntries.forEach(([id, chat]) => {
     const chatTime = getLocalTimestamp(chat.timestamp);
     const chatDate = new Date(chatTime);
+    
+    // Generate an absolute base local time value (midnight) for the chat date to compare calendar states safely
+    const chatDayStart = new Date(chatDate.getFullYear(), chatDate.getMonth(), chatDate.getDate()).getTime();
 
-    if (chatTime >= startOfToday) {
+    if (chatDayStart === startOfToday) {
       buckets.today.push({ id, chat });
-    } else if (chatTime >= startOfYesterday) {
+    } else if (chatDayStart === startOfYesterday) {
       buckets.yesterday.push({ id, chat });
-    } else if (chatTime >= startOfSevenDaysAgo) {
+    } else if (chatDayStart >= startOfSevenDaysAgo) {
       const weekday = chatDate.toLocaleDateString('en-US', { weekday: 'long' });
       if (!buckets.weekly[weekday]) buckets.weekly[weekday] = [];
       buckets.weekly[weekday].push({ id, chat });
@@ -548,6 +578,7 @@ function renderChats() {
   if (buckets.today.length > 0) { appendHeader("Today"); appendChatItems(buckets.today); }
   if (buckets.yesterday.length > 0) { appendHeader("Yesterday"); appendChatItems(buckets.yesterday); }
   
+  // Maintains reliable sorted ordering for weekdays and calendar names
   Object.keys(buckets.weekly).forEach(day => {
     appendHeader(day);
     appendChatItems(buckets.weekly[day]);
@@ -615,7 +646,9 @@ async function askAI() {
       parts: [{ text: "Please enable **Images Generation** mode from the options menu to create visual assets." }] 
     });
     input.value = "";
-    save(); renderMessages();
+    // Save immediate local time values seamlessly to the active thread context
+    chats[currentChat].timestamp = Date.now();
+    save(); renderMessages(); renderChats();
     return;
   }
 
@@ -697,7 +730,7 @@ async function askAI() {
     chats[currentChat].messages.push({ role: "model", parts: [{ text: "Expoloom AI is temporarily unavailable. Please try again." }] });
   }
   
-  // Formats server timestamp updates flawlessly into the local frontend timeline
+  // Updates local timeline to standard millisecond metrics to keep fresh inputs in the 'Today' bracket
   chats[currentChat].timestamp = Date.now();
   save(); renderMessages(); renderChats();
 }
