@@ -379,6 +379,8 @@ let currentChat = localStorage.getItem("lastChatId") || null;
 let currentMode = "ultrafast"; 
 let activeSpecial = null;
 let pendingFile = null;
+let abortController = null; 
+let isGenerating = false;
 
 const sidebar = document.getElementById("sidebar");
 let sideStartX = 0;
@@ -632,6 +634,14 @@ function removeLoading() { const l = document.getElementById("gemini-loader"); i
 
 async function askAI() {
   const input = document.getElementById("input");
+  const sendBtn = document.getElementById("sendBtn");
+
+  // 1. IF CURRENTLY GENERATING, STOP IT
+  if (isGenerating) {
+    if (abortController) abortController.abort(); // Kills the fetch request instantly
+    return;
+  }
+
   const msgText = input.value.trim();
   if (!msgText && !pendingFile) return;
 
@@ -646,7 +656,6 @@ async function askAI() {
       parts: [{ text: "Please enable **Images Generation** mode from the options menu to create visual assets." }] 
     });
     input.value = "";
-    // Save immediate local time values seamlessly to the active thread context
     chats[currentChat].timestamp = Date.now();
     save(); renderMessages(); renderChats();
     return;
@@ -662,6 +671,16 @@ async function askAI() {
   clearAttachment();
   showLoading();
 
+  // 2. LOCK UI & PREPARE TO GENERATE
+  isGenerating = true;
+  abortController = new AbortController();
+  
+  // Change button to a Stop button & disable typing
+  sendBtn.innerHTML = "■ Stop";
+  sendBtn.style.backgroundColor = "#ef4444"; // Red color
+  input.disabled = true; // Lock text box
+  input.placeholder = "Generating response...";
+
   let conversationPayload = [...chats[currentChat].messages];
   conversationPayload.unshift({ role: 'system', parts: [{ text: 'Your name is Expoloom AI. You were created by the Expoloom Team. Always identify as Expoloom AI and never as a Google model.' }] });
 
@@ -672,7 +691,8 @@ async function askAI() {
       body: JSON.stringify({ 
         messages: conversationPayload, 
         mode: activeSpecial || currentMode 
-      })
+      }),
+      signal: abortController.signal // Attaches the kill-switch to this request
     });
 
     const contentType = res.headers.get("content-type");
@@ -727,12 +747,25 @@ async function askAI() {
     }
   } catch (e) {
     removeLoading();
-    chats[currentChat].messages.push({ role: "model", parts: [{ text: "Expoloom AI is temporarily unavailable. Please try again." }] });
+    // 3. HANDLE ABORT VS REAL ERRORS
+    if (e.name === 'AbortError') {
+      // The user clicked stop, so we just quietly end it without showing an error
+      console.log("Generation stopped by user.");
+    } else {
+      chats[currentChat].messages.push({ role: "model", parts: [{ text: "Expoloom AI is temporarily unavailable. Please try again." }] });
+    }
+  } finally {
+    // 4. RESTORE UI TO NORMAL (Runs whether successful, errored, or aborted)
+    isGenerating = false;
+    sendBtn.innerHTML = "Send";
+    sendBtn.style.backgroundColor = "var(--accent-blue)";
+    input.disabled = false;
+    input.placeholder = "Ask anything...";
+    input.focus(); 
+    
+    chats[currentChat].timestamp = Date.now();
+    save(); renderMessages(); renderChats();
   }
-  
-  // Updates local timeline to standard millisecond metrics to keep fresh inputs in the 'Today' bracket
-  chats[currentChat].timestamp = Date.now();
-  save(); renderMessages(); renderChats();
 }
 
 function createNewChat() { 
