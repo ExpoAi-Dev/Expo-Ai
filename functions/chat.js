@@ -1,37 +1,82 @@
 export async function onRequest(context) {
   const { request, env } = context;
 
+  // Handle CORS Preflight checks for mobile requests
+  if (request.method === "OPTIONS") {
+    return new Response(null, {
+      headers: {
+        "Access-Control-Allow-Origin": "*",
+        "Access-Control-Allow-Methods": "POST, OPTIONS",
+        "Access-Control-Allow-Headers": "Content-Type",
+      },
+    });
+  }
+
   if (!env.API_KEY) {
-    return new Response("data: " + JSON.stringify({ choices: [{ delta: { content: "Error: API_KEY is missing." } }] }) + "\n\ndata: [DONE]\n\n", { headers: { "Content-Type": "text/event-stream" } });
+    return new Response("data: " + JSON.stringify({ choices: [{ delta: { content: "Error: API_KEY is missing." } }] }) + "\n\ndata: [DONE]\n\n", { 
+      headers: { "Content-Type": "text/event-stream", "Access-Control-Allow-Origin": "*" } 
+    });
   }
 
   try {
     const { messages } = await request.json();
 
-    const formattedMessages = messages.map(m => ({
+    if (!messages || !Array.isArray(messages)) {
+      throw new Error("Invalid messages array.");
+    }
+
+    // 1. EXTRACT SYSTEM PROMPT AND CLEAN/TRUNCATE HISTORY (Keep last 15 messages)
+    let systemInstructionText = "Your name is Expoloom AI. You were created by the Expoloom Team. Always identify as Expoloom AI.";
+    
+    let conversationHistory = messages.filter(m => {
+      if (m.role === "system") {
+        const textContent = m.content || m.parts?.[0]?.text;
+        if (textContent) systemInstructionText = textContent;
+        return false; // Remove from standard chat history items
+      }
+      return true;
+    });
+
+    // Truncate history payload to avoid 429 quota exhaustion or high latency
+    const maxHistory = 15;
+    if (conversationHistory.length > maxHistory) {
+      conversationHistory = conversationHistory.slice(-maxHistory);
+    }
+
+    // Convert roles and structures into strict Gemini formats
+    const formattedMessages = conversationHistory.map(m => ({
       role: m.role === "assistant" ? "model" : "user",
       parts: [{ text: m.content || m.parts?.[0]?.text || "" }]
     })).filter(m => m.parts[0].text.trim() !== "");
 
     if (formattedMessages.length === 0) {
-        throw new Error("No message content found.");
+      throw new Error("No valid message content found.");
     }
 
-    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${env.API_KEY}`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ contents: formattedMessages })
-    });
+    // Assemble payload with structured system instructions
+    const payload = {
+      contents: formattedMessages,
+      systemInstruction: {
+        parts: [{ text: systemInstructionText }]
+      }
+    };
 
-    const data = await response.json();
+    // 2. CONNECT TO THE TRUE STREAMING ENDPOINT
+    const geminiResponse = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:streamGenerateContent?key=${env.API_KEY}`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload)
+      }
+    );
 
-    if (data.error) {
-      return new Response("data: " + JSON.stringify({ choices: [{ delta: { content: "Gemini Error: " + data.error.message } }] }) + "\n\ndata: [DONE]\n\n", { headers: { "Content-Type": "text/event-stream" } });
+    if (!geminiResponse.ok) {
+      const errText = await geminiResponse.text();
+      throw new Error(`Gemini API Error (${geminiResponse.status}): ${errText}`);
     }
 
-    const botText = data.candidates?.[0]?.content?.parts?.[0]?.text || "I'm sorry, I couldn't generate a response.";
-
-    // --- UNLIMITED SUPABASE LOGGING ---
+    // 3. BACKGROUND LOGGING TO SUPABASE (Non-blocking, user doesn't wait)
     try {
       const rawDevice = request.headers.get('user-agent') || 'Unknown Device';
       let deviceName = "PC / Laptop";
@@ -41,30 +86,83 @@ export async function onRequest(context) {
         deviceName = rawDevice.includes('Mobile') ? "Android Phone" : "Android Tablet";
       }
 
-      // Send log to Supabase via a clean HTTP POST fetch
-      await fetch(`${env.SUPABASE_URL}/rest/v1/ai_usage_logs`, {
-        method: 'POST',
-        headers: {
-          'apikey': env.SUPABASE_KEY,
-          'Authorization': `Bearer ${env.SUPABASE_KEY}`,
-          'Content-Type': 'application/json',
-          'Prefer': 'return=minimal'
-        },
-        body: JSON.stringify({ device_name: deviceName })
-      });
-
+      if (env.SUPABASE_URL && env.SUPABASE_KEY) {
+        // waitUntil keeps the background process alive while the user receives data instantly
+        context.waitUntil(
+          fetch(`${env.SUPABASE_URL}/rest/v1/ai_usage_logs`, {
+            method: 'POST',
+            headers: {
+              'apikey': env.SUPABASE_KEY,
+              'Authorization': `Bearer ${env.SUPABASE_KEY}`,
+              'Content-Type': 'application/json',
+              'Prefer': 'return=minimal'
+            },
+            body: JSON.stringify({ device_name: deviceName })
+          }).catch(e => console.log("Supabase background log failed", e.message))
+        );
+      }
     } catch (sbErr) {
-      console.log("Supabase Logging Error:", sbErr.message);
+      console.log("Supabase configuration exception:", sbErr.message);
     }
-    // --- END SUPABASE LOGGING ---
 
-    const streamData = `data: ${JSON.stringify({ choices: [{ delta: { content: botText } }] })}\n\ndata: [DONE]\n\n`;
-    
-    return new Response(streamData, {
-      headers: { "Content-Type": "text/event-stream" }
+    // 4. TRANSFORMS GOOGLE TOKENS INTO COMPATIBLE SSE FORMAT ON-THE-FLY
+    const { readable, writable } = new TransformStream();
+    const writer = writable.getWriter();
+    const encoder = new TextEncoder();
+    const reader = geminiResponse.body.getReader();
+    const decoder = new TextDecoder("utf-8");
+
+    (async () => {
+      let buffer = "";
+      try {
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+
+          buffer += decoder.decode(value, { stream: true });
+
+          // Search the buffer dynamically for valid text node strings generated by Gemini
+          let match;
+          while ((match = buffer.match(/"text"\s*:\s*"((?:[^"\\]|\\.)*)"/)) !== null) {
+            let rawText = match[1];
+            
+            // Safely resolve nested newlines and symbols to clear up parsing blocks
+            let cleanText = JSON.parse(`"${rawText}"`);
+
+            if (cleanText) {
+              const ssePayload = {
+                choices: [{ delta: { content: cleanText } }]
+              };
+              // Formats data lines perfectly to match index.html's JSON.parse(line.substring(6))
+              await writer.write(encoder.encode(`data: ${JSON.stringify(ssePayload)}\n\n`));
+            }
+
+            // Remove parsed section out of the active buffer stream string
+            buffer = buffer.substring(match.index + match[0].length);
+          }
+        }
+      } catch (streamErr) {
+        const errPayload = { choices: [{ delta: { content: `\n[Stream Error: ${streamErr.message}]` } }] };
+        await writer.write(encoder.encode(`data: ${JSON.stringify(errPayload)}\n\n`));
+      } finally {
+        // Send final signal line to tell index.html to close connection states safely
+        await writer.write(encoder.encode("data: [DONE]\n\n"));
+        await writer.close();
+      }
+    })();
+
+    return new Response(readable, {
+      headers: {
+        "Content-Type": "text/event-stream",
+        "Cache-Control": "no-cache",
+        "Connection": "keep-alive",
+        "Access-Control-Allow-Origin": "*",
+      },
     });
 
   } catch (err) {
-    return new Response("data: " + JSON.stringify({ choices: [{ delta: { content: "System Error: " + err.message } }] }) + "\n\ndata: [DONE]\n\n", { headers: { "Content-Type": "text/event-stream" } });
+    return new Response("data: " + JSON.stringify({ choices: [{ delta: { content: "System Error: " + err.message } }] }) + "\n\ndata: [DONE]\n\n", { 
+      headers: { "Content-Type": "text/event-stream", "Access-Control-Allow-Origin": "*" } 
+    });
   }
 }
