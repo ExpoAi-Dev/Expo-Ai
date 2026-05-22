@@ -41,7 +41,6 @@
       z-index: 20;
     }
     
-    /* Desktop state: Hide sidebar by sliding left and pulling content */
     .sidebar.closed {
       transform: translateX(-100%);
       margin-right: -260px;
@@ -49,7 +48,6 @@
 
     .sidebar-header { display: block; font-size: 16px; font-weight: bold; color: var(--text-color); }
     
-    /* Clean Row Layout for Brand Title + Profile Button */
     .sidebar-top-row { 
       display: flex; 
       justify-content: space-between; 
@@ -89,10 +87,8 @@
     .main { flex: 1; display: flex; flex-direction: column; width: 100%; overflow: hidden;}
     .header { display: flex; justify-content: space-between; align-items: center; padding: 10px; min-height: 56px; background: var(--header-bg); font-weight: bold; border-bottom: 1px solid rgba(0,0,0,0.05); position: relative; }
     
-    /* Always display menu button on all viewports */
     .menu-btn { font-size: 22px; cursor: pointer; display: block; margin-right: 10px; }
     
-    /* Profile styling optimized for dark and light views inside the sidebar */
     .profile-btn { 
       width: 32px; 
       height: 32px; 
@@ -107,7 +103,6 @@
       user-select: none;
     }
     
-    /* Perfect absolute positioning dropdown panel targeting within the sidebar container boundaries */
     .account-panel { 
       position: absolute; 
       top: 52px; 
@@ -468,24 +463,19 @@ function toggleMenu() {
 function toggleDarkMode() { document.body.classList.toggle("dark-theme", document.getElementById("darkModeCheckbox").checked); }
 function toggleAccount(e) { e.stopPropagation(); const p = document.getElementById("accountPanel"); p.style.display = (p.style.display === "block") ? "none" : "block"; }
 
-// Helper function to safely transform incoming ISO/UTC database strings into standard local epoch timestamps
 function getLocalTimestamp(ts) {
   if (!ts) return Date.now();
   if (typeof ts === 'number') return ts;
   
   if (typeof ts === 'string') {
     let cleanTs = ts.trim();
-    // Normalizes space separations to ISO standard 'T'
     cleanTs = cleanTs.replace(" ", "T");
     
-    // Safely handles microsecond strings like ".344167+00" or ".344167Z"
-    // Extracts up to 3 fractional millisecond digits so mobile platforms/Safari don't break
     const dotIndex = cleanTs.lastIndexOf(".");
     if (dotIndex !== -1) {
       let base = cleanTs.substring(0, dotIndex);
       let rest = cleanTs.substring(dotIndex + 1);
       
-      // Separate digits from timezone markers (like +00, -, Z)
       let digits = "";
       let tzMarker = "";
       for (let i = 0; i < rest.length; i++) {
@@ -509,7 +499,6 @@ function renderChats() {
   const list = document.getElementById("chatList");
   list.innerHTML = "";
   
-  // Create bucket containers to cleanly group items by local timestamps
   const buckets = {
     today: [],
     yesterday: [],
@@ -518,7 +507,6 @@ function renderChats() {
   };
 
   const now = new Date();
-  // Get absolute local calendar day cutoffs
   const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
   const startOfYesterday = startOfToday - (24 * 60 * 60 * 1000);
   const startOfSevenDaysAgo = startOfToday - (6 * 24 * 60 * 60 * 1000);
@@ -533,7 +521,6 @@ function renderChats() {
     const chatTime = getLocalTimestamp(chat.timestamp);
     const chatDate = new Date(chatTime);
     
-    // Generate an absolute base local time value (midnight) for the chat date to compare calendar states safely
     const chatDayStart = new Date(chatDate.getFullYear(), chatDate.getMonth(), chatDate.getDate()).getTime();
 
     if (chatDayStart === startOfToday) {
@@ -580,7 +567,6 @@ function renderChats() {
   if (buckets.today.length > 0) { appendHeader("Today"); appendChatItems(buckets.today); }
   if (buckets.yesterday.length > 0) { appendHeader("Yesterday"); appendChatItems(buckets.yesterday); }
   
-  // Maintains reliable sorted ordering for weekdays and calendar names
   Object.keys(buckets.weekly).forEach(day => {
     appendHeader(day);
     appendChatItems(buckets.weekly[day]);
@@ -636,9 +622,9 @@ async function askAI() {
   const input = document.getElementById("input");
   const sendBtn = document.getElementById("sendBtn");
 
-  // 1. IF CURRENTLY GENERATING, STOP IT
+  // IF CURRENTLY GENERATING, STOP IT
   if (isGenerating) {
-    if (abortController) abortController.abort(); // Kills the fetch request instantly
+    if (abortController) abortController.abort();
     return;
   }
 
@@ -671,14 +657,13 @@ async function askAI() {
   clearAttachment();
   showLoading();
 
-  // 2. LOCK UI & PREPARE TO GENERATE
+  // LOCK UI & PREPARE TO GENERATE
   isGenerating = true;
   abortController = new AbortController();
   
-  // Change button to a Stop button & disable typing
   sendBtn.innerHTML = "■ Stop";
-  sendBtn.style.backgroundColor = "#ef4444"; // Red color
-  input.disabled = true; // Lock text box
+  sendBtn.style.backgroundColor = "#ef4444";
+  input.disabled = true;
   input.placeholder = "Generating response...";
 
   let conversationPayload = [...chats[currentChat].messages];
@@ -692,7 +677,7 @@ async function askAI() {
         messages: conversationPayload, 
         mode: activeSpecial || currentMode 
       }),
-      signal: abortController.signal // Attaches the kill-switch to this request
+      signal: abortController.signal
     });
 
     const contentType = res.headers.get("content-type");
@@ -747,15 +732,12 @@ async function askAI() {
     }
   } catch (e) {
     removeLoading();
-    // 3. HANDLE ABORT VS REAL ERRORS
     if (e.name === 'AbortError') {
-      // The user clicked stop, so we just quietly end it without showing an error
       console.log("Generation stopped by user.");
     } else {
       chats[currentChat].messages.push({ role: "model", parts: [{ text: "Expoloom AI is temporarily unavailable. Please try again." }] });
     }
   } finally {
-    // 4. RESTORE UI TO NORMAL (Runs whether successful, errored, or aborted)
     isGenerating = false;
     sendBtn.innerHTML = "Send";
     sendBtn.style.backgroundColor = "var(--accent-blue)";
