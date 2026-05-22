@@ -12,14 +12,8 @@ export async function onRequest(context) {
     });
   }
 
-  if (!env.API_KEY) {
-    return new Response("data: " + JSON.stringify({ choices: [{ delta: { content: "Error: API_KEY is missing." } }] }) + "\n\ndata: [DONE]\n\n", { 
-      headers: { "Content-Type": "text/event-stream", "Access-Control-Allow-Origin": "*" } 
-    });
-  }
-
   try {
-    const { messages } = await request.json();
+    const { messages, mode } = await request.json();
 
     if (!messages || !Array.isArray(messages)) {
       throw new Error("Invalid messages array.");
@@ -43,37 +37,67 @@ export async function onRequest(context) {
       conversationHistory = conversationHistory.slice(-maxHistory);
     }
 
-    // Convert roles and structures into strict Gemini formats
-    const formattedMessages = conversationHistory.map(m => ({
-      role: m.role === "assistant" ? "model" : "user",
-      parts: [{ text: m.content || m.parts?.[0]?.text || "" }]
-    })).filter(m => m.parts[0].text.trim() !== "");
-
-    if (formattedMessages.length === 0) {
+    if (conversationHistory.length === 0) {
       throw new Error("No valid message content found.");
     }
 
-    // Assemble payload with structured system instructions
-    const payload = {
-      contents: formattedMessages,
-      systemInstruction: {
-        parts: [{ text: systemInstructionText }]
-      }
-    };
+    // 2. SMART ROUTER: GROQ vs GEMINI
+    const isGroq = mode === "ultrafast" || mode === "coder";
+    let aiResponse;
 
-    // 2. CONNECT TO THE TRUE STREAMING ENDPOINT
-    const geminiResponse = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:streamGenerateContent?key=${env.API_KEY}`,
-      {
+    if (isGroq) {
+      if (!env.GROQ_API_KEY) throw new Error("GROQ_API_KEY is missing from Cloudflare variables.");
+      
+      // Use the Llama 3.1 models for the free tier
+      const groqModel = mode === "coder" ? "llama-3.3-70b-versatile" : "llama-3.1-8b-instant";
+      
+      const groqMessages = [
+        { role: "system", content: systemInstructionText },
+        ...conversationHistory.map(m => ({
+          role: m.role === "assistant" || m.role === "model" ? "assistant" : "user",
+          content: m.content || m.parts?.[0]?.text || ""
+        }))
+      ];
+
+      aiResponse = await fetch("https://api.groq.com/openai/v1/chat/completions", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload)
-      }
-    );
+        headers: {
+          "Authorization": `Bearer ${env.GROQ_API_KEY}`,
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          model: groqModel,
+          messages: groqMessages,
+          stream: true
+        })
+      });
 
-    if (!geminiResponse.ok) {
-      const errText = await geminiResponse.text();
-      throw new Error(`Gemini API Error (${geminiResponse.status}): ${errText}`);
+    } else {
+      // Default to Gemini for everything else
+      if (!env.API_KEY) throw new Error("API_KEY (Gemini) is missing.");
+
+      // Convert roles and structures into strict Gemini formats
+      const formattedMessages = conversationHistory.map(m => ({
+        role: m.role === "assistant" || m.role === "model" ? "model" : "user",
+        parts: [{ text: m.content || m.parts?.[0]?.text || "" }]
+      })).filter(m => m.parts[0].text.trim() !== "");
+
+      aiResponse = await fetch(
+        `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:streamGenerateContent?key=${env.API_KEY}`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            contents: formattedMessages,
+            systemInstruction: { parts: [{ text: systemInstructionText }] }
+          })
+        }
+      );
+    }
+
+    if (!aiResponse.ok) {
+      const errText = await aiResponse.text();
+      throw new Error(`${isGroq ? 'Groq' : 'Gemini'} API Error (${aiResponse.status}): ${errText}`);
     }
 
     // 3. BACKGROUND LOGGING TO SUPABASE (Non-blocking, user doesn't wait)
@@ -87,7 +111,6 @@ export async function onRequest(context) {
       }
 
       if (env.SUPABASE_URL && env.SUPABASE_KEY) {
-        // waitUntil keeps the background process alive while the user receives data instantly
         context.waitUntil(
           fetch(`${env.SUPABASE_URL}/rest/v1/ai_usage_logs`, {
             method: 'POST',
@@ -105,11 +128,11 @@ export async function onRequest(context) {
       console.log("Supabase configuration exception:", sbErr.message);
     }
 
-    // 4. TRANSFORMS GOOGLE TOKENS INTO COMPATIBLE SSE FORMAT ON-THE-FLY
+    // 4. TRANSFORMS GROQ & GEMINI TOKENS INTO COMPATIBLE SSE FORMAT ON-THE-FLY
     const { readable, writable } = new TransformStream();
     const writer = writable.getWriter();
     const encoder = new TextEncoder();
-    const reader = geminiResponse.body.getReader();
+    const reader = aiResponse.body.getReader();
     const decoder = new TextDecoder("utf-8");
 
     (async () => {
@@ -121,31 +144,47 @@ export async function onRequest(context) {
 
           buffer += decoder.decode(value, { stream: true });
 
-          // Search the buffer dynamically for valid text node strings generated by Gemini
-          let match;
-          while ((match = buffer.match(/"text"\s*:\s*"((?:[^"\\]|\\.)*)"/)) !== null) {
-            let rawText = match[1];
+          if (isGroq) {
+            // Parse Groq SSE Stream
+            let lines = buffer.split('\n');
+            buffer = lines.pop(); // save incomplete line back to buffer
             
-            // Safely resolve nested newlines and symbols to clear up parsing blocks
-            let cleanText = JSON.parse(`"${rawText}"`);
-
-            if (cleanText) {
-              const ssePayload = {
-                choices: [{ delta: { content: cleanText } }]
-              };
-              // Formats data lines perfectly to match index.html's JSON.parse(line.substring(6))
-              await writer.write(encoder.encode(`data: ${JSON.stringify(ssePayload)}\n\n`));
+            for (let line of lines) {
+              line = line.trim();
+              if (line.startsWith("data: ") && line !== "data: [DONE]") {
+                try {
+                  const parsed = JSON.parse(line.substring(6));
+                  const textDelta = parsed.choices[0]?.delta?.content || "";
+                  if (textDelta) {
+                    const ssePayload = { choices: [{ delta: { content: textDelta } }] };
+                    await writer.write(encoder.encode(`data: ${JSON.stringify(ssePayload)}\n\n`));
+                  }
+                } catch (e) {
+                  // Skip incomplete JSON chunks
+                }
+              }
             }
+          } else {
+            // Parse Gemini Raw JSON Stream
+            let match;
+            while ((match = buffer.match(/"text"\s*:\s*"((?:[^"\\]|\\.)*)"/)) !== null) {
+              let rawText = match[1];
+              let cleanText = JSON.parse(`"${rawText}"`);
 
-            // Remove parsed section out of the active buffer stream string
-            buffer = buffer.substring(match.index + match[0].length);
+              if (cleanText) {
+                const ssePayload = {
+                  choices: [{ delta: { content: cleanText } }]
+                };
+                await writer.write(encoder.encode(`data: ${JSON.stringify(ssePayload)}\n\n`));
+              }
+              buffer = buffer.substring(match.index + match[0].length);
+            }
           }
         }
       } catch (streamErr) {
         const errPayload = { choices: [{ delta: { content: `\n[Stream Error: ${streamErr.message}]` } }] };
         await writer.write(encoder.encode(`data: ${JSON.stringify(errPayload)}\n\n`));
       } finally {
-        // Send final signal line to tell index.html to close connection states safely
         await writer.write(encoder.encode("data: [DONE]\n\n"));
         await writer.close();
       }
