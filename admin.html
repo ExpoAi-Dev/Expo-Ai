@@ -55,12 +55,19 @@
         function checkPass() {
             const pass = document.getElementById('adminPassword').value;
             if (pass) {
-                // Safely passes password key forward to the rendering dashboard page
-                window.location.href = '/stats.html?key=' + encodeURIComponent(pass);
+                // Point to the /stats function endpoint, NOT /stats.html
+                window.location.href = '/stats?key=' + encodeURIComponent(pass);
             } else {
                 alert("Please enter a password");
             }
         }
+        
+        // Bonus: Allow pressing "Enter" to submit the password
+        document.getElementById('adminPassword').addEventListener('keypress', function (e) {
+            if (e.key === 'Enter') {
+                checkPass();
+            }
+        });
     </script>
 
 </body>
