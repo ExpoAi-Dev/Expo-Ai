@@ -252,9 +252,9 @@
       margin: 0;
     }
 
-    #sheetOverlay, #optionsOverlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.4); display: none; z-index: 1000; }
-    .modes-sheet, .options-sheet { position: fixed; bottom: -100%; left: 0; right: 0; background: var(--header-bg); border-top-left-radius: 25px; border-top-right-radius: 25px; transition: bottom 0.3s cubic-bezier(0.4, 0, 0.2, 1); z-index: 1001; padding-bottom: 40px; box-shadow: 0 -5px 15px rgba(0,0,0,0.2); }
-    .modes-sheet.open, .options-sheet.open { bottom: 0; }
+    #sheetOverlay, #optionsOverlay, #chatActionOverlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.4); display: none; z-index: 1000; }
+    .modes-sheet, .options-sheet, .chat-action-sheet { position: fixed; bottom: -100%; left: 0; right: 0; background: var(--header-bg); border-top-left-radius: 25px; border-top-right-radius: 25px; transition: bottom 0.3s cubic-bezier(0.4, 0, 0.2, 1); z-index: 1001; padding-bottom: 40px; box-shadow: 0 -5px 15px rgba(0,0,0,0.2); }
+    .modes-sheet.open, .options-sheet.open, .chat-action-sheet.open { bottom: 0; }
     .sheet-handle-area { width: 100%; padding: 15px 0; cursor: grab; }
     .sheet-handle { width: 40px; height: 5px; background: rgba(128,128,128,0.4); border-radius: 10px; margin: 0 auto; }
     .mode-option { display: flex; justify-content: space-between; align-items: center; padding: 15px 25px; cursor: pointer; color: var(--text-color); }
@@ -264,6 +264,28 @@
 
     .settings-panel { position: fixed; bottom: -100%; left: 0; right: 0; height: 85%; background: #EEEEEE; color: black; border-top-left-radius: 25px; border-top-right-radius: 25px; transition: bottom 0.3s ease; z-index: 100; padding: 25px; box-shadow: 0 -5px 20px rgba(0,0,0,0.3); }
     .settings-panel.open { bottom: 0; }
+    
+    /* MODALS: Delete & Rename Custom UI */
+    .modal-overlay {
+      position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+      background: rgba(0,0,0,0.6); display: none; z-index: 2000;
+      align-items: center; justify-content: center;
+    }
+    .custom-modal-box {
+      background: var(--header-bg); padding: 25px; border-radius: 15px;
+      width: 300px; text-align: center; border: 1px solid rgba(128,128,128,0.3);
+      box-shadow: 0 10px 25px rgba(0,0,0,0.3);
+    }
+    .custom-modal-btns { display: flex; gap: 10px; margin-top: 20px; }
+    .custom-modal-btns button { 
+      flex: 1; padding: 10px; border-radius: 8px; cursor: pointer; 
+      font-weight: bold; font-size: 14px;
+    }
+    .custom-input {
+      width: 100%; padding: 12px; border-radius: 8px; border: 1px solid rgba(128,128,128,0.3);
+      background: var(--bg-main); color: var(--text-color); margin-top: 15px; font-size: 14px; outline: none;
+    }
+    .custom-input:focus { border-color: var(--accent-blue); }
 
     @media (max-width: 768px) {
       .sidebar { position: fixed; transform: translateX(-100%); left: 0; top: 0; }
@@ -317,12 +339,50 @@
   </div>
 </div>
 
+<div id="chatActionOverlay" onclick="closeChatActionSheet()"></div>
+<div id="chatActionSheet" class="chat-action-sheet">
+  <div class="sheet-handle-area" onclick="closeChatActionSheet()">
+    <div class="sheet-handle"></div>
+  </div>
+  <div class="mode-option" onclick="handleCurrentChatPin()">
+    <div><b>📌 Pin/Unpin Chat</b></div>
+  </div>
+  <div class="mode-option" onclick="handleCurrentChatRename()">
+    <div><b>✏️ Rename Chat</b></div>
+  </div>
+  <div class="mode-option" onclick="handleCurrentChatDelete()">
+    <div style="color: #ef4444;"><b>🗑️ Delete Chat</b></div>
+  </div>
+</div>
+
+<div id="deleteConfirmOverlay" class="modal-overlay" onclick="closeDeleteModal()">
+  <div class="custom-modal-box" onclick="event.stopPropagation()">
+    <h3 style="margin-top: 0; color: var(--text-color);">Delete Chat?</h3>
+    <p style="opacity: 0.8; font-size: 14px; color: var(--text-color);">Are you sure you want to delete this chat? This action cannot be undone.</p>
+    <div class="custom-modal-btns">
+      <button onclick="closeDeleteModal()" style="border: 1px solid #64748b; background: transparent; color: var(--text-color);">Cancel</button>
+      <button onclick="confirmDeleteAction()" style="border: none; background: #ef4444; color: white;">Delete</button>
+    </div>
+  </div>
+</div>
+
+<div id="renameConfirmOverlay" class="modal-overlay" onclick="closeRenameModal()">
+  <div class="custom-modal-box" onclick="event.stopPropagation()">
+    <h3 style="margin-top: 0; color: var(--text-color);">Rename Chat</h3>
+    <input type="text" id="renameChatInput" class="custom-input" placeholder="Enter new chat name..." />
+    <div class="custom-modal-btns">
+      <button onclick="closeRenameModal()" style="border: 1px solid #64748b; background: transparent; color: var(--text-color);">Cancel</button>
+      <button onclick="confirmRenameAction()" style="border: none; background: var(--accent-blue); color: white;">Save</button>
+    </div>
+  </div>
+</div>
+
 <div id="sidebar" class="sidebar">
   <div class="sidebar-top-row">
     <div class="sidebar-header"><b>Expoloom AI</b></div>
     <div class="profile-btn" onclick="toggleAccount(event)">👤</div>
     
-    <div id="accountPanel" class="account-panel">
+    <div id="accountPanel" class="account-panel" onclick="event.stopPropagation()">
       <p style="margin-top:0; color: var(--text-color);">👤 <b>Account</b></p>
       <div class="divider" style="background:gray; opacity:0.2;"></div>
       <p style="font-size:13px; opacity:0.8; margin-bottom:5px; color: var(--text-color);">User ID: exp_012</p>
@@ -341,13 +401,16 @@
 <div class="main">
   <div class="header">
     <div id="menuBtn" class="menu-btn" onclick="toggleMenu()">☰</div>
-    Expoloom AI
-    <button class="top-new-chat-btn" onclick="createNewChat()" title="New Chat">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width: 22px; height: 22px;">
-        <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
-        <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
-      </svg>
-    </button>
+    <div style="flex-grow: 1; text-align: left; margin-left: 5px;">Expoloom AI</div>
+    <div style="display: flex; align-items: center; gap: 8px;">
+      <button class="top-new-chat-btn" onclick="createNewChat()" title="New Chat">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width: 22px; height: 22px;">
+          <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
+          <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
+        </svg>
+      </button>
+      <div class="dots" onclick="openChatActionSheet()" style="font-size: 24px; padding: 5px;">⋮</div>
+    </div>
   </div>
 
   <div id="chat" class="chat-box"></div>
@@ -410,6 +473,8 @@ let activeSpecial = null;
 let pendingFile = null;
 let abortController = null; 
 let isGenerating = false;
+let chatToDelete = null; 
+let chatToRename = null; 
 
 const sidebar = document.getElementById("sidebar");
 let sideStartX = 0;
@@ -424,6 +489,12 @@ function openModes() { document.getElementById("modesSheet").classList.add("open
 function closeModes() { document.getElementById("modesSheet").classList.remove("open"); document.getElementById("sheetOverlay").style.display = "none"; }
 function openSettings() { document.getElementById("settingsPanel").classList.add("open"); }
 function closeSettings() { document.getElementById("settingsPanel").classList.remove("open"); }
+
+function openChatActionSheet() { document.getElementById("chatActionSheet").classList.add("open"); document.getElementById("chatActionOverlay").style.display = "block"; }
+function closeChatActionSheet() { document.getElementById("chatActionSheet").classList.remove("open"); document.getElementById("chatActionOverlay").style.display = "none"; }
+function handleCurrentChatPin() { closeChatActionSheet(); if (currentChat && chats[currentChat]) togglePin(currentChat); }
+function handleCurrentChatRename() { closeChatActionSheet(); if (currentChat && chats[currentChat]) renameChat(currentChat); }
+function handleCurrentChatDelete() { closeChatActionSheet(); if (currentChat && chats[currentChat]) deleteChat(currentChat); }
 
 function setSpecialOption(type) { activeSpecial = type; closeOptions(); updateOptionUI(); }
 function deselectSpecial() { activeSpecial = null; updateOptionUI(); }
@@ -443,7 +514,7 @@ function setMode(m) {
   currentMode = m;
   const labels = { 'ultrafast': 'Ultra Fast', 'fast': 'Fast', 'thinking': 'Thinking', 'coder': 'Coder', 'pro': 'Pro' };
   document.getElementById("modeBtn").innerText = labels[m];
-  document.querySelectorAll('.mode-option').forEach(el => el.classList.remove('active'));
+  document.querySelectorAll('.modes-sheet .mode-option').forEach(el => el.classList.remove('active'));
   document.getElementById('opt-' + m).classList.add('active');
   closeModes();
 }
@@ -589,7 +660,7 @@ function renderChats() {
       div.innerHTML = `
         <div class="chat-name" onclick="switchChat('${id}')">${pinLabel}${chat.name}</div>
         <div class="dots" onclick="openChatMenu(event, '${id}')">⋮</div>
-        <div id="menu-${id}" class="chat-menu">
+        <div id="menu-${id}" class="chat-menu" onclick="event.stopPropagation()">
           <div onclick="togglePin('${id}')">${chat.pinned ? 'Unpin' : 'Pin'}</div>
           <div onclick="renameChat('${id}')">Rename</div>
           <div onclick="deleteChat('${id}')">Delete</div>
@@ -613,9 +684,31 @@ function renderChats() {
 }
 
 function togglePin(id) { chats[id].pinned = !chats[id].pinned; save(); renderChats(); }
+
 function renameChat(id) {
-  const newName = prompt("Enter new chat name:", chats[id].name);
-  if (newName !== null && newName.trim() !== "") { chats[id].name = newName.trim(); save(); renderChats(); }
+  chatToRename = id;
+  const input = document.getElementById("renameChatInput");
+  input.value = chats[id].name;
+  document.getElementById("renameConfirmOverlay").style.display = "flex";
+  
+  setTimeout(() => input.focus(), 100);
+}
+
+function closeRenameModal() {
+  chatToRename = null;
+  document.getElementById("renameConfirmOverlay").style.display = "none";
+}
+
+function confirmRenameAction() {
+  if (chatToRename) {
+    const newName = document.getElementById("renameChatInput").value;
+    if (newName !== null && newName.trim() !== "") { 
+      chats[chatToRename].name = newName.trim(); 
+      save(); 
+      renderChats(); 
+    }
+    closeRenameModal();
+  }
 }
 
 function switchChat(id) { 
@@ -623,8 +716,32 @@ function switchChat(id) {
   if(window.innerWidth < 768) sidebar.classList.remove("open"); 
 }
 
-function openChatMenu(e, id) { e.stopPropagation(); document.querySelectorAll('.chat-menu').forEach(m => m.style.display = 'none'); document.getElementById(`menu-${id}`).style.display = 'flex'; }
-function deleteChat(id) { if(confirm("Delete?")){ delete chats[id]; currentChat = Object.keys(chats)[0] || null; save(); renderChats(); renderMessages(); } }
+function openChatMenu(e, id) { 
+  e.stopPropagation(); 
+  document.querySelectorAll('.chat-menu').forEach(m => m.style.display = 'none'); 
+  document.getElementById(`menu-${id}`).style.display = 'flex'; 
+}
+
+function deleteChat(id) { 
+  chatToDelete = id;
+  document.getElementById("deleteConfirmOverlay").style.display = "flex";
+}
+
+function closeDeleteModal() {
+  chatToDelete = null;
+  document.getElementById("deleteConfirmOverlay").style.display = "none";
+}
+
+function confirmDeleteAction() {
+  if (chatToDelete) {
+    delete chats[chatToDelete];
+    currentChat = Object.keys(chats)[0] || null;
+    save();
+    renderChats();
+    renderMessages();
+    closeDeleteModal();
+  }
+}
 
 function renderMessages() {
   const box = document.getElementById("chat"); box.innerHTML = "";
@@ -790,9 +907,14 @@ function createNewChat() {
   if(window.innerWidth < 768) sidebar.classList.remove("open");
 }
 
-window.onclick = () => { 
-  document.querySelectorAll('.chat-menu').forEach(m => m.style.display = 'none'); 
-  document.getElementById("accountPanel").style.display = "none"; 
+window.onclick = (e) => { 
+  // Only hide if we aren't clicking inside active panels or their toggle buttons
+  if (!e.target.closest('.dots') && !e.target.closest('.chat-menu')) {
+    document.querySelectorAll('.chat-menu').forEach(m => m.style.display = 'none'); 
+  }
+  if (!e.target.closest('.profile-btn') && !e.target.closest('#accountPanel')) {
+    document.getElementById("accountPanel").style.display = "none"; 
+  }
 };
 
 if(!currentChat) createNewChat(); else { renderChats(); renderMessages(); }
