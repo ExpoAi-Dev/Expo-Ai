@@ -1,8 +1,20 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <title>Expoloom AI Chat</title>
+  <title>Expoloom AI</title>
+  
+  <meta name="description" content="Welcome to Expoloom AI. Experience ultra-fast AI responses, deep analysis, coding assistance, and advanced image generation in one powerful interface.">
+  <meta name="keywords" content="Expoloom AI, Expoloom, AI, image generation, coding assistant, advanced AI">
+  <meta name="robots" content="index, follow">
+  <meta name="author" content="Expoloom Team">
+  
+  <meta property="og:type" content="website">
+  <meta property="og:url" content="https://expoloomai.pages.dev/">
+  <meta property="og:title" content="Expoloom AI">
+  <meta property="og:description" content="Experience ultra-fast AI responses, deep analysis, coding assistance, and advanced image generation in one powerful interface.">
+  
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  
   <style>
     :root {
       --bg-main: #ffffff; --bg-sidebar: #f8fafc; --text-color: #000000;
@@ -89,7 +101,6 @@
     
     .menu-btn { font-size: 22px; cursor: pointer; display: block; margin-right: 10px; }
     
-    /* Updated Icon Button for New Chat in Header */
     .top-new-chat-btn {
       background: transparent;
       color: var(--text-color);
@@ -229,7 +240,6 @@
       color: white; 
     }
     
-    /* This original button is untouched */
     .new-chat { 
       width: auto; 
       padding: 12px 24px; 
@@ -646,7 +656,6 @@ async function askAI() {
   const input = document.getElementById("input");
   const sendBtn = document.getElementById("sendBtn");
 
-  // IF CURRENTLY GENERATING, STOP IT
   if (isGenerating) {
     if (abortController) abortController.abort();
     return;
@@ -681,7 +690,6 @@ async function askAI() {
   clearAttachment();
   showLoading();
 
-  // LOCK UI & PREPARE TO GENERATE
   isGenerating = true;
   abortController = new AbortController();
   
