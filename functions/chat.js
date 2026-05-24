@@ -48,7 +48,7 @@ export async function onRequest(context) {
     if (isGroq) {
       if (!env.GROQ_API_KEY) throw new Error("GROQ_API_KEY is missing from Cloudflare variables.");
       
-      // Use the Llama 3.1 models for the free tier
+      // Use the Llama 3.1/3.3 models for the free tier
       const groqModel = mode === "coder" ? "llama-3.3-70b-versatile" : "llama-3.1-8b-instant";
       
       const groqMessages = [
@@ -110,6 +110,10 @@ export async function onRequest(context) {
         deviceName = rawDevice.includes('Mobile') ? "Android Phone" : "Android Tablet";
       }
 
+      // NEW: Attach the discreet provider tag to the device string
+      const providerTag = isGroq ? "G Data" : "Gem Data";
+      const finalDeviceName = `${deviceName} | ${providerTag}`;
+
       if (env.SUPABASE_URL && env.SUPABASE_KEY) {
         context.waitUntil(
           fetch(`${env.SUPABASE_URL}/rest/v1/ai_usage_logs`, {
@@ -120,7 +124,7 @@ export async function onRequest(context) {
               'Content-Type': 'application/json',
               'Prefer': 'return=minimal'
             },
-            body: JSON.stringify({ device_name: deviceName })
+            body: JSON.stringify({ device_name: finalDeviceName })
           }).catch(e => console.log("Supabase background log failed", e.message))
         );
       }
