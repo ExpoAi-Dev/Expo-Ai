@@ -401,7 +401,7 @@
 <div class="main">
   <div class="header">
     <div id="menuBtn" class="menu-btn" onclick="toggleMenu()">☰</div>
-    <div style="flex-grow: 1; text-align: left; margin-left: 5px;">Expoloom AI</div>
+    <div id="mainHeaderTitle" style="flex-grow: 1; text-align: left; margin-left: 5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; padding-right: 10px;">Expoloom AI</div>
     <div style="display: flex; align-items: center; gap: 8px;">
       <button class="top-new-chat-btn" onclick="createNewChat()" title="New Chat">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width: 22px; height: 22px;">
@@ -482,6 +482,16 @@ sidebar.addEventListener('touchstart', e => sideStartX = e.touches[0].clientX);
 sidebar.addEventListener('touchmove', e => {
     if (sideStartX - e.touches[0].clientX > 60 && sidebar.classList.contains("open")) toggleMenu();
 });
+
+/* NEW: Function to dynamically update the main header title */
+function updateHeaderTitle() {
+  const titleEl = document.getElementById("mainHeaderTitle");
+  if (currentChat && chats[currentChat] && chats[currentChat].name !== "New Chat") {
+    titleEl.innerText = chats[currentChat].name;
+  } else {
+    titleEl.innerText = "Expoloom AI";
+  }
+}
 
 function openOptions() { document.getElementById("optionsSheet").classList.add("open"); document.getElementById("optionsOverlay").style.display = "block"; }
 function closeOptions() { document.getElementById("optionsSheet").classList.remove("open"); document.getElementById("optionsOverlay").style.display = "none"; }
@@ -601,6 +611,7 @@ function getLocalTimestamp(ts) {
 }
 
 function renderChats() {
+  updateHeaderTitle(); // Call our new title function whenever chats render
   const list = document.getElementById("chatList");
   list.innerHTML = "";
   
