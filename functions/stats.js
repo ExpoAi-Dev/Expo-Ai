@@ -10,6 +10,10 @@ export async function onRequest(context) {
   let monthTotal = 0;
   let deviceLogs = [];
   
+  // NEW: Tracking counters for the API Key usage
+  let gemDataTotal = 0;
+  let gDataTotal = 0;
+  
   // Initialize graphs datasets with 0s
   let todayHourly = Array(24).fill(0);
   let monthlyDaily = Array(31).fill(0);
@@ -49,6 +53,15 @@ export async function onRequest(context) {
       const pMonth = pDate.getMonth();
       const pDay = pDate.getDate();
       const pHour = pDate.getHours();
+
+      // NEW: Increment API Key tracking safely based on the tags we added in chat.js
+      if (log.device_name) {
+          if (log.device_name.includes('G Data')) {
+              gDataTotal++;
+          } else if (log.device_name.includes('Gem Data')) {
+              gemDataTotal++;
+          }
+      }
 
       // Adjust day of week string index matching standard days array mapping
       let pDayOfWeek = pDate.getDay() - 1; 
@@ -120,6 +133,17 @@ export async function onRequest(context) {
 </head>
 <body>
     <h1 style="font-size: 24px; margin-bottom: 25px; padding-left: 5px;">Expoloom AI Insights</h1>
+
+    <div style="display: flex; gap: 15px; margin-bottom: 15px;">
+        <div class="card" style="flex: 1; margin-bottom: 0; cursor: default;">
+            <h3>Gem Data</h3>
+            <div class="count" style="font-size: 28px; color: #2563eb;">${gemDataTotal}</div>
+        </div>
+        <div class="card" style="flex: 1; margin-bottom: 0; cursor: default;">
+            <h3>G Data</h3>
+            <div class="count" style="font-size: 28px; color: #ef4444;">${gDataTotal}</div>
+        </div>
+    </div>
 
     <div class="card" onclick="toggle('todayGraph')">
         <h3>Today's Usage</h3>
