@@ -41,11 +41,53 @@ export async function onRequest(context) {
       throw new Error("No valid message content found.");
     }
 
-    // 2. SMART ROUTER: GROQ vs GEMINI
+    // 2. SMART ROUTER: GROQ vs GEMINI TEXT vs GEMINI IMAGE
     const isGroq = mode === "ultrafast" || mode === "coder";
+    const isImageGen = mode === "image_gen";
+    
     let aiResponse;
+    let base64ImageResponse = null;
 
-    if (isGroq) {
+    if (isImageGen) {
+      if (!env.API_KEY) throw new Error("API_KEY (Gemini) is missing from Cloudflare variables.");
+      
+      const lastMessage = conversationHistory[conversationHistory.length - 1];
+      const prompt = lastMessage.content || lastMessage.parts?.[0]?.text || "";
+
+      // Call Gemini 2.5 Flash Image model (Nano Banana) for generation
+      aiResponse = await fetch(
+        `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-image:generateContent?key=${env.API_KEY}`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            contents: [{ parts: [{ text: prompt }] }]
+          })
+        }
+      );
+
+      if (!aiResponse.ok) {
+        const errText = await aiResponse.text();
+        throw new Error(`Gemini Image API Error (${aiResponse.status}): ${errText}`);
+      }
+
+      const imgData = await aiResponse.json();
+      
+      // Parse the Base64 image from the Gemini Response
+      if (imgData.candidates?.[0]?.content?.parts) {
+        for (const part of imgData.candidates[0].content.parts) {
+          if (part.inlineData && part.inlineData.data) {
+             base64ImageResponse = `data:${part.inlineData.mimeType || 'image/jpeg'};base64,${part.inlineData.data}`;
+             break;
+          }
+        }
+      }
+      
+      if (!base64ImageResponse) {
+        throw new Error("No image data was found in the Gemini response.");
+      }
+
+    } else if (isGroq) {
       if (!env.GROQ_API_KEY) throw new Error("GROQ_API_KEY is missing from Cloudflare variables.");
       
       // Use the Llama 3.1/3.3 models for the free tier
@@ -73,10 +115,9 @@ export async function onRequest(context) {
       });
 
     } else {
-      // Default to Gemini for everything else
+      // Default to Gemini Text for everything else
       if (!env.API_KEY) throw new Error("API_KEY (Gemini) is missing.");
 
-      // Convert roles and structures into strict Gemini formats
       const formattedMessages = conversationHistory.map(m => ({
         role: m.role === "assistant" || m.role === "model" ? "model" : "user",
         parts: [{ text: m.content || m.parts?.[0]?.text || "" }]
@@ -95,12 +136,13 @@ export async function onRequest(context) {
       );
     }
 
-    if (!aiResponse.ok) {
+    // Error checking for streaming text routes
+    if (!isImageGen && !aiResponse.ok) {
       const errText = await aiResponse.text();
-      throw new Error(`${isGroq ? 'Groq' : 'Gemini'} API Error (${aiResponse.status}): ${errText}`);
+      throw new Error(`${isGroq ? 'Groq' : 'Gemini Text'} API Error (${aiResponse.status}): ${errText}`);
     }
 
-    // 3. BACKGROUND LOGGING TO SUPABASE (Non-blocking, user doesn't wait)
+    // 3. BACKGROUND LOGGING TO SUPABASE (Non-blocking)
     try {
       const rawDevice = request.headers.get('user-agent') || 'Unknown Device';
       let deviceName = "PC / Laptop";
@@ -110,7 +152,7 @@ export async function onRequest(context) {
         deviceName = rawDevice.includes('Mobile') ? "Android Phone" : "Android Tablet";
       }
 
-      // NEW: Attach the discreet provider tag to the device string
+      // Attach provider tag to device string. Images count under "Gem Data"
       const providerTag = isGroq ? "G Data" : "Gem Data";
       const finalDeviceName = `${deviceName} | ${providerTag}`;
 
@@ -132,7 +174,17 @@ export async function onRequest(context) {
       console.log("Supabase configuration exception:", sbErr.message);
     }
 
-    // 4. TRANSFORMS GROQ & GEMINI TOKENS INTO COMPATIBLE SSE FORMAT ON-THE-FLY
+    // 4. RETURN IMMEDIATELY FOR IMAGE GENERATION (No streaming)
+    if (isImageGen) {
+      return new Response(JSON.stringify({ image: base64ImageResponse }), {
+        headers: {
+          "Content-Type": "application/json",
+          "Access-Control-Allow-Origin": "*",
+        },
+      });
+    }
+
+    // 5. TRANSFORMS GROQ & GEMINI TEXT TOKENS INTO COMPATIBLE SSE FORMAT ON-THE-FLY
     const { readable, writable } = new TransformStream();
     const writer = writable.getWriter();
     const encoder = new TextEncoder();
