@@ -13,6 +13,41 @@ export async function onRequest(context) {
   }
 
   try {
+    const contentType = request.headers.get("content-type") || "";
+    
+    // NEW BLOCK: Detect Voice Recording and send to Groq Whisper API
+    if (contentType.includes("multipart/form-data")) {
+      const formData = await request.formData();
+      const file = formData.get("file");
+      
+      if (!file) throw new Error("No audio file provided.");
+      if (!env.GROQ_API_KEY) throw new Error("GROQ_API_KEY is missing from Cloudflare.");
+
+      const groqAudioData = new FormData();
+      groqAudioData.append("file", file);
+      groqAudioData.append("model", "whisper-large-v3-turbo");
+
+      const groqResponse = await fetch("https://api.groq.com/openai/v1/audio/transcriptions", {
+        method: "POST",
+        headers: {
+          "Authorization": `Bearer ${env.GROQ_API_KEY}`
+          // Fetch automatically sets the correct Content-Type boundary for FormData
+        },
+        body: groqAudioData
+      });
+
+      if (!groqResponse.ok) {
+         const errText = await groqResponse.text();
+         throw new Error("Whisper API Error: " + errText);
+      }
+
+      const result = await groqResponse.json();
+      return new Response(JSON.stringify({ text: result.text }), {
+        headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" }
+      });
+    }
+
+    // --- EXISTING CHAT LOGIC BELOW ---
     const { messages, mode } = await request.json();
 
     if (!messages || !Array.isArray(messages)) {
@@ -26,12 +61,11 @@ export async function onRequest(context) {
       if (m.role === "system") {
         const textContent = m.content || m.parts?.[0]?.text;
         if (textContent) systemInstructionText = textContent;
-        return false; // Remove from standard chat history items
+        return false; 
       }
       return true;
     });
 
-    // Truncate history payload to avoid 429 quota exhaustion or high latency
     const maxHistory = 15;
     if (conversationHistory.length > maxHistory) {
       conversationHistory = conversationHistory.slice(-maxHistory);
@@ -53,7 +87,6 @@ export async function onRequest(context) {
       const prompt = lastMessage.content || lastMessage.parts?.[0]?.text || "";
       const encodedPrompt = encodeURIComponent(prompt);
 
-      // Route directly to Pollinations AI using your new Secret Key
       try {
         if (!env.POLLINATIONS_API_KEY) {
           throw new Error("POLLINATIONS_API_KEY variable is missing from Cloudflare.");
@@ -68,9 +101,7 @@ export async function onRequest(context) {
           }
         });
         
-        if (!imageFetch.ok) {
-          throw new Error(`Image API error status: ${imageFetch.status}`);
-        }
+        if (!imageFetch.ok) throw new Error(`Image API error status: ${imageFetch.status}`);
         
         const arrayBuffer = await imageFetch.arrayBuffer();
         const buffer = btoa(String.fromCharCode(...new Uint8Array(arrayBuffer)));
@@ -83,7 +114,6 @@ export async function onRequest(context) {
     } else if (isGroq) {
       if (!env.GROQ_API_KEY) throw new Error("GROQ_API_KEY is missing from Cloudflare variables.");
       
-      // Use the Llama 3.1/3.3 models for the free tier
       const groqModel = mode === "coder" ? "llama-3.3-70b-versatile" : "llama-3.1-8b-instant";
       
       const groqMessages = [
@@ -108,10 +138,8 @@ export async function onRequest(context) {
       });
 
     } else {
-      // Default to Gemini for everything else (Text)
       if (!env.API_KEY) throw new Error("API_KEY (Gemini) is missing.");
 
-      // Convert roles and structures into strict Gemini formats
       const formattedMessages = conversationHistory.map(m => ({
         role: m.role === "assistant" || m.role === "model" ? "model" : "user",
         parts: [{ text: m.content || m.parts?.[0]?.text || "" }]
@@ -130,13 +158,12 @@ export async function onRequest(context) {
       );
     }
 
-    // Check for errors on text streams
     if (!isImageGen && !aiResponse.ok) {
       const errText = await aiResponse.text();
       throw new Error(`${isGroq ? 'Groq' : 'Gemini'} API Error (${aiResponse.status}): ${errText}`);
     }
 
-    // 3. BACKGROUND LOGGING TO SUPABASE (Non-blocking, user doesn't wait)
+    // 3. BACKGROUND LOGGING TO SUPABASE
     try {
       const rawDevice = request.headers.get('user-agent') || 'Unknown Device';
       let deviceName = "PC / Laptop";
@@ -146,7 +173,6 @@ export async function onRequest(context) {
         deviceName = rawDevice.includes('Mobile') ? "Android Phone" : "Android Tablet";
       }
 
-      // Attach the discreet provider tag to the device string depending on the request type
       let providerTag = "Gem Data";
       if (isGroq) providerTag = "G Data";
       if (isImageGen) providerTag = "Img Data";
@@ -171,7 +197,7 @@ export async function onRequest(context) {
       console.log("Supabase configuration exception:", sbErr.message);
     }
 
-    // 4. RETURN IMMEDIATELY FOR IMAGE GENERATION (No streaming)
+    // 4. RETURN IMMEDIATELY FOR IMAGE GENERATION
     if (isImageGen) {
       return new Response(JSON.stringify({ image: base64ImageResponse }), {
         headers: {
@@ -181,7 +207,7 @@ export async function onRequest(context) {
       });
     }
 
-    // 5. TRANSFORMS GROQ & GEMINI TOKENS INTO COMPATIBLE SSE FORMAT ON-THE-FLY
+    // 5. TRANSFORMS GROQ & GEMINI TOKENS INTO COMPATIBLE SSE FORMAT
     const { readable, writable } = new TransformStream();
     const writer = writable.getWriter();
     const encoder = new TextEncoder();
@@ -198,9 +224,8 @@ export async function onRequest(context) {
           buffer += decoder.decode(value, { stream: true });
 
           if (isGroq) {
-            // Parse Groq SSE Stream
             let lines = buffer.split('\n');
-            buffer = lines.pop(); // save incomplete line back to buffer
+            buffer = lines.pop(); 
             
             for (let line of lines) {
               line = line.trim();
@@ -212,22 +237,17 @@ export async function onRequest(context) {
                     const ssePayload = { choices: [{ delta: { content: textDelta } }] };
                     await writer.write(encoder.encode(`data: ${JSON.stringify(ssePayload)}\n\n`));
                   }
-                } catch (e) {
-                  // Skip incomplete JSON chunks
-                }
+                } catch (e) {}
               }
             }
           } else {
-            // Parse Gemini Raw JSON Stream
             let match;
             while ((match = buffer.match(/"text"\s*:\s*"((?:[^"\\]|\\.)*)"/)) !== null) {
               let rawText = match[1];
               let cleanText = JSON.parse(`"${rawText}"`);
 
               if (cleanText) {
-                const ssePayload = {
-                  choices: [{ delta: { content: cleanText } }]
-                };
+                const ssePayload = { choices: [{ delta: { content: cleanText } }] };
                 await writer.write(encoder.encode(`data: ${JSON.stringify(ssePayload)}\n\n`));
               }
               buffer = buffer.substring(match.index + match[0].length);
