@@ -214,7 +214,6 @@
     .user { background: var(--accent-blue); color: white; align-self: flex-end; border-bottom-right-radius: 2px; }
     .bot { background: var(--bot-msg-bg); color: var(--text-color); align-self: flex-start; border-bottom-left-radius: 2px; }
 
-    /* NEW: Empty Chat State Styling */
     .empty-chat-container {
       display: flex; flex-direction: column; align-items: center; justify-content: center;
       height: 100%; text-align: center; color: var(--text-color);
@@ -517,6 +516,8 @@
       <span class="remove-attachment" onclick="clearAttachment()">✕</span>
     </div>
 
+    <canvas id="audioVisualizer" width="300" height="40" style="display:none; margin: 0 auto 10px auto; width: 100%; max-width: 300px;"></canvas>
+
     <div class="input-area">
       <textarea id="input" rows="1" placeholder="Ask anything..." oninput="autoExpand(this)"></textarea>
       <button class="send-btn" id="sendBtn" onclick="askAI()">Send</button>
@@ -645,22 +646,122 @@ function clearAttachment() {
   document.getElementById("fileInput").value = "";
 }
 
-let recognition;
-if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
-  const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
-  recognition = new SR();
-  recognition.onstart = () => document.getElementById("micBtn").classList.add("listening");
-  recognition.onend = () => document.getElementById("micBtn").classList.remove("listening");
-  recognition.onresult = (e) => { 
-    document.getElementById("input").value = e.results[0][0].transcript; 
-    autoExpand(document.getElementById("input")); 
-  };
+// NEW: Whisper API Voice Recording & Audio Visualizer setup
+let mediaRecorder;
+let audioChunks = [];
+let audioCtx, analyser, dataArray;
+let visualizerAnimationId;
+const visualizerCanvas = document.getElementById("audioVisualizer");
+const canvasCtx = visualizerCanvas.getContext("2d");
+
+async function toggleVoice() {
+  if (isGenerating) return;
+
+  const micBtn = document.getElementById("micBtn");
+
+  if (mediaRecorder && mediaRecorder.state === "recording") {
+    mediaRecorder.stop();
+    micBtn.classList.remove("listening");
+    visualizerCanvas.style.display = "none";
+    if (audioCtx) {
+      audioCtx.close();
+      audioCtx = null;
+    }
+    cancelAnimationFrame(visualizerAnimationId);
+    return;
+  }
+
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    
+    // Setup Audio Visualizer
+    audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    analyser = audioCtx.createAnalyser();
+    const source = audioCtx.createMediaStreamSource(stream);
+    source.connect(analyser);
+    analyser.fftSize = 128;
+    dataArray = new Uint8Array(analyser.frequencyBinCount);
+    
+    visualizerCanvas.style.display = "block";
+    micBtn.classList.add("listening");
+    drawVisualizer();
+
+    // Setup Audio Recording for Whisper
+    mediaRecorder = new MediaRecorder(stream);
+    audioChunks = [];
+
+    mediaRecorder.ondataavailable = (event) => {
+      audioChunks.push(event.data);
+    };
+
+    mediaRecorder.onstop = async () => {
+      stream.getTracks().forEach(track => track.stop());
+      
+      const audioBlob = new Blob(audioChunks, { type: 'audio/webm' });
+      const input = document.getElementById("input");
+      const originalPlaceholder = input.placeholder;
+      input.placeholder = "Listening & Transcribing...";
+      input.disabled = true;
+
+      const formData = new FormData();
+      formData.append("file", audioBlob, "audio.webm");
+
+      try {
+        const response = await fetch("/chat", {
+          method: "POST",
+          body: formData
+        });
+        
+        if (response.ok) {
+           const data = await response.json();
+           if (data.text) {
+             input.value = (input.value + " " + data.text).trim();
+             autoExpand(input);
+           }
+        } else {
+           throw new Error("API Error");
+        }
+      } catch (e) {
+        alert("Failed to transcribe audio.");
+      } finally {
+        input.placeholder = originalPlaceholder;
+        input.disabled = false;
+        input.focus();
+      }
+    };
+
+    mediaRecorder.start();
+
+  } catch (err) {
+    alert("Could not access microphone.");
+  }
 }
-function toggleVoice() { 
-  if(recognition) {
-    try { recognition.start(); } catch(e) { recognition.stop(); }
-  } else {
-    alert("Speech recognition not supported in this browser.");
+
+function drawVisualizer() {
+  if (!audioCtx) return;
+  visualizerAnimationId = requestAnimationFrame(drawVisualizer);
+  analyser.getByteFrequencyData(dataArray);
+
+  canvasCtx.clearRect(0, 0, visualizerCanvas.width, visualizerCanvas.height);
+  
+  let barWidth = (visualizerCanvas.width / analyser.frequencyBinCount) * 2;
+  let barHeight;
+  let x = 0;
+
+  for(let i = 0; i < analyser.frequencyBinCount; i++) {
+    barHeight = (dataArray[i] / 255) * visualizerCanvas.height;
+    if (barHeight < 2) barHeight = 2; // Minimum height for the dot aesthetic
+
+    canvasCtx.fillStyle = '#2563eb'; // Expoloom Blue
+    
+    // Draw centered vertical line/dot
+    const y = (visualizerCanvas.height - barHeight) / 2;
+    
+    canvasCtx.beginPath();
+    canvasCtx.roundRect(x, y, barWidth - 2, barHeight, 5); 
+    canvasCtx.fill();
+    
+    x += barWidth;
   }
 }
 
@@ -872,7 +973,6 @@ function renderMessages() {
   box.innerHTML = "";
   if (!currentChat || !chats[currentChat]) return;
   
-  // NEW: Render Quick Action Buttons if the chat is completely empty
   if (chats[currentChat].messages.length === 0) {
     box.innerHTML = `
       <div class="empty-chat-container">
@@ -1058,7 +1158,6 @@ function createNewChat() {
 }
 
 window.onclick = (e) => { 
-  // Only hide if we aren't clicking inside active panels or their toggle buttons
   if (!e.target.closest('.dots') && !e.target.closest('.chat-menu')) {
     document.querySelectorAll('.chat-menu').forEach(m => m.style.display = 'none'); 
   }
