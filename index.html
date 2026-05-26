@@ -497,13 +497,13 @@
     <div id="menuBtn" class="menu-btn" onclick="toggleMenu()">☰</div>
     <div id="mainHeaderTitle" style="flex-grow: 1; text-align: left; margin-left: 5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; padding-right: 10px;">Expoloom AI</div>
     <div style="display: flex; align-items: center; gap: 8px;">
-      <button class="top-new-chat-btn" onclick="createNewChat()" title="New Chat">
+      <button id="mainNewChatBtn" class="top-new-chat-btn" onclick="createNewChat()" title="New Chat" style="display: none;">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width: 22px; height: 22px;">
           <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
           <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
         </svg>
       </button>
-      <div class="dots" onclick="openChatActionSheet()" style="font-size: 24px; padding: 5px;">⋮</div>
+      <div id="mainMoreBtn" class="dots" onclick="openChatActionSheet()" style="font-size: 24px; padding: 5px; display: none;">⋮</div>
     </div>
   </div>
 
@@ -1010,9 +1010,20 @@ function confirmDeleteAction() {
 function renderMessages() {
   const box = document.getElementById("chat"); 
   box.innerHTML = "";
-  if (!currentChat || !chats[currentChat]) return;
+  
+  const mainNewChatBtn = document.getElementById("mainNewChatBtn");
+  const mainMoreBtn = document.getElementById("mainMoreBtn");
+
+  if (!currentChat || !chats[currentChat]) {
+    if(mainNewChatBtn) mainNewChatBtn.style.display = 'none';
+    if(mainMoreBtn) mainMoreBtn.style.display = 'none';
+    return;
+  }
   
   if (chats[currentChat].messages.length === 0) {
+    if(mainNewChatBtn) mainNewChatBtn.style.display = 'none';
+    if(mainMoreBtn) mainMoreBtn.style.display = 'none';
+    
     box.innerHTML = `
       <div class="empty-chat-container">
         <div class="empty-chat-title">How can I help you today?</div>
@@ -1034,6 +1045,9 @@ function renderMessages() {
     `;
     return;
   }
+
+  if(mainNewChatBtn) mainNewChatBtn.style.display = 'flex';
+  if(mainMoreBtn) mainMoreBtn.style.display = 'block';
 
   chats[currentChat].messages.forEach(msg => {
     const div = document.createElement("div");
