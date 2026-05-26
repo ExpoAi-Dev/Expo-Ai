@@ -252,21 +252,6 @@
       box-shadow: 0 -4px 15px rgba(0,0,0,0.1);
     }
     
-    /* Dedicated continuous soundwave canvas visualizer design container */
-    .visualizer-container {
-      width: 100%;
-      height: 45px;
-      margin-bottom: 6px;
-      display: none; /* Dynamically triggered in JS sync with the listening state */
-      align-items: center;
-      justify-content: center;
-    }
-    .visualizer-container canvas {
-      width: 100%;
-      height: 100%;
-      display: block;
-    }
-    
     .attachment-preview {
       display: none; align-items: center; background: var(--chip-bg); padding: 8px 12px;
       border-radius: 10px; margin-bottom: 8px; width: fit-content; border: 1px solid var(--accent-blue); gap: 8px;
@@ -310,652 +295,917 @@
     .flex-spacer { flex-grow: 1; }
     .modes-btn { padding: 12px 24px; border-radius: 999px; border: 1px solid rgba(128,128,128,0.3); background: var(--bg-main); color: var(--text-color); font-size: 14px; font-weight: 500; cursor: pointer; }
 
-    @keyframes pulse { 
-      0% { box-shadow: 0 0 0 0 rgba(37, 99, 235, 0.4); } 
-      70% { box-shadow: 0 0 0 10px rgba(37, 99, 235, 0); } 
-      100% { box-shadow: 0 0 0 0 rgba(37, 99, 235, 0); } 
+    @keyframes pulse {
+      0% { box-shadow: 0 0 0 0 rgba(37, 99, 235, 0.4); }
+      70% { box-shadow: 0 0 0 10px rgba(37, 99, 235, 0); }
+      100% { box-shadow: 0 0 0 0 rgba(37, 99, 235, 0); }
     }
     .btn-circle.listening { background: rgba(37, 99, 235, 0.2); animation: pulse 1.5s infinite; }
 
-    .bottom-bar { display: flex; justify-content: space-between; align-items: center; padding: 10px 0 5px 0; margin-top: auto; }
-    .settings-btn { width: 44px; height: 44px; display: flex; align-items: center; justify-content: center; background: #334155; border-radius: 50%; cursor: pointer; color: white; }
-    .new-chat { width: auto; padding: 12px 24px; background: var(--accent-blue); border-radius: 999px; text-align: center; cursor: pointer; color: white; font-weight: bold; margin: 0; }
+    .bottom-bar { 
+      display: flex; 
+      justify-content: space-between; 
+      align-items: center; 
+      padding: 10px 0 5px 0; 
+      margin-top: auto;
+    }
+    .settings-btn { 
+      width: 44px;
+      height: 44px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: #334155; 
+      border-radius: 50%; 
+      cursor: pointer; 
+      color: white; 
+    }
+    
+    .new-chat { 
+      width: auto; 
+      padding: 12px 24px; 
+      background: var(--accent-blue); 
+      border-radius: 999px; 
+      text-align: center; 
+      cursor: pointer; 
+      color: white; 
+      font-weight: bold; 
+      margin: 0;
+    }
 
     #sheetOverlay, #optionsOverlay, #chatActionOverlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.4); display: none; z-index: 1000; }
     .modes-sheet, .options-sheet, .chat-action-sheet { position: fixed; bottom: -100%; left: 0; right: 0; background: var(--header-bg); border-top-left-radius: 25px; border-top-right-radius: 25px; transition: bottom 0.3s cubic-bezier(0.4, 0, 0.2, 1); z-index: 1001; padding-bottom: 40px; box-shadow: 0 -5px 15px rgba(0,0,0,0.2); }
     .modes-sheet.open, .options-sheet.open, .chat-action-sheet.open { bottom: 0; }
     .sheet-handle-area { width: 100%; padding: 15px 0; cursor: grab; }
-    .sheet-handle { width: 40px; height: 5px; background: rgba(128,128,128,0.4); border-radius: 999px; margin: 0 auto; }
+    .sheet-handle { width: 40px; height: 5px; background: rgba(128,128,128,0.4); border-radius: 10px; margin: 0 auto; }
+    .mode-option { display: flex; justify-content: space-between; align-items: center; padding: 15px 25px; cursor: pointer; color: var(--text-color); }
+    .mode-option.active { background: rgba(128,128,128,0.1); }
+    .check-mark { color: var(--accent-blue); font-weight: bold; font-size: 20px; display: none; }
+    .mode-option.active .check-mark { display: block; }
+
+    .settings-panel { position: fixed; bottom: -100%; left: 0; right: 0; height: 85%; background: #EEEEEE; color: black; border-top-left-radius: 25px; border-top-right-radius: 25px; transition: bottom 0.3s ease; z-index: 100; padding: 25px; box-shadow: 0 -5px 20px rgba(0,0,0,0.3); }
+    .settings-panel.open { bottom: 0; }
+    
+    .modal-overlay {
+      position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+      background: rgba(0,0,0,0.6); display: none; z-index: 2000;
+      align-items: center; justify-content: center;
+    }
+    .custom-modal-box {
+      background: var(--header-bg); padding: 25px; border-radius: 15px;
+      width: 300px; text-align: center; border: 1px solid rgba(128,128,128,0.3);
+      box-shadow: 0 10px 25px rgba(0,0,0,0.3);
+    }
+    .custom-modal-btns { display: flex; gap: 10px; margin-top: 20px; }
+    .custom-modal-btns button { 
+      flex: 1; padding: 10px; border-radius: 8px; cursor: pointer; 
+      font-weight: bold; font-size: 14px;
+    }
+    .custom-input {
+      width: 100%; padding: 12px; border-radius: 8px; border: 1px solid rgba(128,128,128,0.3);
+      background: var(--bg-main); color: var(--text-color); margin-top: 15px; font-size: 14px; outline: none;
+    }
+    .custom-input:focus { border-color: var(--accent-blue); }
+
+    @media (max-width: 768px) {
+      .sidebar { position: fixed; transform: translateX(-100%); left: 0; top: 0; }
+      .sidebar.open { transform: translateX(0); }
+      .sidebar.closed { transform: translateX(-100%); margin-right: 0; }
+    }
   </style>
 </head>
-<body class="dark-theme">
 
-  <div class="sidebar closed" id="sidebar">
-    <div class="sidebar-top-row">
-      <div class="sidebar-header">Expoloom AI</div>
-      <button class="top-new-chat-btn" onclick="createNewChat()">➕</button>
+<body class="dark-theme"> 
+
+<div id="sheetOverlay" onclick="closeModes()"></div>
+<div id="modesSheet" class="modes-sheet">
+  <div class="sheet-handle-area" id="sheetHandle">
+    <div class="sheet-handle"></div>
+  </div>
+  <div class="mode-option active" id="opt-ultrafast" onclick="setMode('ultrafast')">
+    <div><b>Ultra Fast</b><br><small style="opacity:0.6;">Instant responses</small></div>
+    <div class="check-mark">✓</div>
+  </div>
+  <div class="mode-option" id="opt-fast" onclick="setMode('fast')">
+    <div><b>Fast</b><br><small style="opacity:0.6;">Balanced speed</small></div>
+    <div class="check-mark">✓</div>
+  </div>
+  <div class="mode-option" id="opt-thinking" onclick="setMode('thinking')">
+    <div><b>Thinking</b><br><small style="opacity:0.6;">Deep analysis</small></div>
+    <div class="check-mark">✓</div>
+  </div>
+  <div class="mode-option" id="opt-coder" onclick="setMode('coder')">
+    <div><b>Coder</b><br><small style="opacity:0.6;">Optimized for programming</small></div>
+    <div class="check-mark">✓</div>
+  </div>
+  <div class="mode-option" id="opt-pro" onclick="setMode('pro')">
+    <div><b>Pro</b><br><small style="opacity:0.6;">Maximum intelligence</small></div>
+    <div class="check-mark">✓</div>
+  </div>
+</div>
+
+<div id="optionsOverlay" onclick="closeOptions()"></div>
+<div id="optionsSheet" class="options-sheet">
+  <div class="sheet-handle-area" id="optionsHandle">
+    <div class="sheet-handle"></div>
+  </div>
+  <div class="mode-option" onclick="setSpecialOption('image_gen')">
+    <div><b>Image Generation</b><br><small style="opacity:0.6;">Create visual assets</small></div>
+    <div class="check-mark">✓</div>
+  </div>
+  <div class="mode-option" onclick="setSpecialOption('deep_thinking')">
+    <div><b>Deep Thinking</b><br><small style="opacity:0.6;">Advanced problem solving</small></div>
+    <div class="check-mark">✓</div>
+  </div>
+</div>
+
+<div id="chatActionOverlay" onclick="closeChatActionSheet()"></div>
+<div id="chatActionSheet" class="chat-action-sheet">
+  <div class="sheet-handle-area" onclick="closeChatActionSheet()">
+    <div class="sheet-handle"></div>
+  </div>
+  <div class="mode-option" onclick="handleCurrentChatPin()">
+    <div style="display: flex; align-items: center; gap: 10px;">
+      <svg class="pin-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" style="margin-right: 0;"><path d="M228.66,84.69l-57.35-57.3a8,8,0,0,0-11.31,0L115.68,71.68l-37-8.15a8,8,0,0,0-7.79,2.69l-24,28.8a8,8,0,0,0,1,11.33L85.23,138,42.34,180.93a8,8,0,0,0,0,11.31l21.41,21.42a8,8,0,0,0,11.32,0L118,170.77l31.62,37.37a8,8,0,0,0,11.33,1l28.8-24a8,8,0,0,0,2.69-7.79l-8.15-37,44.32-44.32A8,8,0,0,0,228.66,84.69ZM154,161l-36.65-43.32a8,8,0,0,0-6.1-2.78l-40.35,3.67,16.58-19.9L129.21,140.4a8,8,0,0,0,10.6,1l36.31-28.18-28.19,36.31a8,8,0,0,0,1,10.6l41.74,41.74-19.9,16.58,3.67-40.35A8,8,0,0,0,171.69,172l-43.33-36.65a8,8,0,0,0-11.24,1L82.8,170.67,71.49,159.35l34.34-34.33a8,8,0,0,0,1-11.24L70.19,70.44l33.8-33.8L145.72,78.37a8,8,0,0,0,11.24-1l34.33-34.34,11.31,11.32Z"></path></svg>
+      <b id="actionSheetPinText">Pin Chat</b>
     </div>
-    <div class="divider"></div>
-    <div class="recent-label">Recent Chats</div>
-    <div class="chat-list" id="chatList"></div>
+  </div>
+  <div class="mode-option" onclick="handleCurrentChatRename()">
+    <div style="display: flex; align-items: center; gap: 10px;">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width: 18px; height: 18px;"><path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z"></path></svg>
+      <b>Rename Chat</b>
+    </div>
+  </div>
+  <div class="mode-option" onclick="handleCurrentChatDelete()">
+    <div style="display: flex; align-items: center; gap: 10px; color: #ef4444;">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width: 18px; height: 18px;">
+        <polyline points="3 6 5 6 21 6"></polyline>
+        <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+        <line x1="10" y1="11" x2="10" y2="17"></line>
+        <line x1="14" y1="11" x2="14" y2="17"></line>
+      </svg>
+      <b>Delete Chat</b>
+    </div>
+  </div>
+</div>
+
+<div id="deleteConfirmOverlay" class="modal-overlay" onclick="closeDeleteModal()">
+  <div class="custom-modal-box" onclick="event.stopPropagation()">
+    <h3 style="margin-top: 0; color: var(--text-color);">Delete Chat?</h3>
+    <p style="opacity: 0.8; font-size: 14px; color: var(--text-color);">Are you sure you want to delete this chat? This action cannot be undone.</p>
+    <div class="custom-modal-btns">
+      <button onclick="closeDeleteModal()" style="border: 1px solid #64748b; background: transparent; color: var(--text-color);">Cancel</button>
+      <button onclick="confirmDeleteAction()" style="border: none; background: #ef4444; color: white;">Delete</button>
+    </div>
+  </div>
+</div>
+
+<div id="renameConfirmOverlay" class="modal-overlay" onclick="closeRenameModal()">
+  <div class="custom-modal-box" onclick="event.stopPropagation()">
+    <h3 style="margin-top: 0; color: var(--text-color);">Rename Chat</h3>
+    <input type="text" id="renameChatInput" class="custom-input" placeholder="Enter new chat name..." />
+    <div class="custom-modal-btns">
+      <button onclick="closeRenameModal()" style="border: 1px solid #64748b; background: transparent; color: var(--text-color);">Cancel</button>
+      <button onclick="confirmRenameAction()" style="border: none; background: var(--accent-blue); color: white;">Save</button>
+    </div>
+  </div>
+</div>
+
+<div id="sidebar" class="sidebar">
+  <div class="sidebar-top-row">
+    <div class="sidebar-header"><b>Expoloom AI</b></div>
+    <div class="profile-btn" onclick="toggleAccount(event)">👤</div>
     
-    <div class="bottom-bar">
-      <div class="new-chat" onclick="createNewChat()">New Chat</div>
-      <div class="settings-btn" onclick="toggleTheme()">🌓</div>
+    <div id="accountPanel" class="account-panel" onclick="event.stopPropagation()">
+      <p style="margin-top:0; color: var(--text-color);">👤 <b>Account</b></p>
+      <div class="divider" style="background:gray; opacity:0.2;"></div>
+      <p style="font-size:13px; opacity:0.8; margin-bottom:5px; color: var(--text-color);">User ID: exp_012</p>
+      <p style="font-size:12px; opacity:0.6; color: var(--text-color);">user@expoloom.com</p>
+    </div>
+  </div>
+  <div class="divider"></div>
+  <div class="recent-label">Recent Chats</div>
+  <div id="chatList" class="chat-list"></div>
+  <div class="bottom-bar">
+    <div class="settings-btn" onclick="openSettings()">⚙️</div>
+    <div class="new-chat" onclick="createNewChat()">+ New Chat</div>
+  </div>
+</div>
+
+<div class="main">
+  <div class="header">
+    <div id="menuBtn" class="menu-btn" onclick="toggleMenu()">☰</div>
+    <div id="mainHeaderTitle" style="flex-grow: 1; text-align: left; margin-left: 5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; padding-right: 10px;">Expoloom AI</div>
+    <div style="display: flex; align-items: center; gap: 8px;">
+      <button class="top-new-chat-btn" onclick="createNewChat()" title="New Chat">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width: 22px; height: 22px;">
+          <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
+          <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
+        </svg>
+      </button>
+      <div class="dots" onclick="openChatActionSheet()" style="font-size: 24px; padding: 5px;">⋮</div>
     </div>
   </div>
 
-  <div class="main">
-    <div class="header">
-      <div style="display:flex; align-items:center;">
-        <span class="menu-btn" onclick="toggleSidebar()">☰</span>
-        <span id="titleLabel">Expoloom AI</span>
-      </div>
-      <div class="profile-btn" onclick="toggleAccountPanel()">EA</div>
-      
-      <div class="account-panel" id="accountPanel">
-        <strong style="display:block;margin-bottom:8px;">Expoloom Workspace</strong>
-        <div style="font-size:13px;opacity:0.8;margin-bottom:12px;">Standard Core Active Tier</div>
-        <div style="height:1px;background:rgba(128,128,128,0.2);margin-bottom:12px;"></div>
-        <div style="cursor:pointer;font-size:14px;color:#ef4444;" onclick="alert('Sign Out complete.')">Sign Out</div>
-      </div>
+  <div id="chat" class="chat-box"></div>
+
+  <div class="input-container">
+    <div id="filePreview" class="attachment-preview">
+      <span style="font-size: 16px;">📎</span>
+      <span id="fileNameDisplay" class="preview-text"></span>
+      <span class="remove-attachment" onclick="clearAttachment()">✕</span>
     </div>
 
-    <div class="chat-box" id="chatBox"></div>
+    <canvas id="audioVisualizer" width="300" height="40" style="display:none; margin: 0 auto 10px auto; width: 100%; max-width: 300px;"></canvas>
 
-    <div class="input-container">
-      
-      <div class="visualizer-container" id="visualizerContainer">
-        <canvas id="waveCanvas"></canvas>
+    <div id="voiceToTypeContainer" style="display: none; justify-content: flex-end; margin-bottom: 8px;">
+      <button id="voiceToTypeBtn" onclick="processVoiceToType()" style="background: #10b981; color: white; border: none; border-radius: 12px; padding: 8px 15px; font-size: 13px; font-weight: bold; cursor: pointer; transition: 0.2s;">
+        ✨ Voice to Type
+      </button>
+    </div>
+
+    <div class="input-area">
+      <textarea id="input" rows="1" placeholder="Ask anything..." oninput="autoExpand(this)"></textarea>
+      <button class="send-btn" id="sendBtn" onclick="askAI()">Send</button>
+    </div>
+    <div class="action-row">
+      <input type="file" id="fileInput" style="display: none;" onchange="handleFileUpload(this)">
+      <div class="btn-circle" onclick="document.getElementById('fileInput').click()">
+        <svg class="icon-svg" viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
       </div>
-      
-      <div class="attachment-preview" id="attachmentPreview">
-        <span class="preview-text" id="previewText">File.jpg</span>
-        <span class="remove-attachment" onclick="clearAttachment()">×</span>
+
+      <div id="standardOptionBtn" class="btn-circle" onclick="openOptions()" style="transform: rotate(90deg);">
+        <svg class="icon-svg" viewBox="0 0 24 24" style="stroke: var(--accent-blue); fill: var(--accent-blue);">
+          <circle cx="8" cy="18" r="2.5"></circle>
+          <line x1="8" y1="16" x2="8" y2="4" stroke-width="2"></line>
+          <circle cx="16" cy="6" r="2.5"></circle>
+          <line x1="16" y1="8" x2="16" y2="20" stroke-width="2"></line>
+        </svg>
       </div>
 
-      <div class="input-area">
-        <textarea id="userInput" placeholder="Ask anything..." rows="1" oninput="autoGrow(this)"></textarea>
-        <button class="send-btn" id="sendBtn" onclick="sendMessage()">Send</button>
+      <div id="optionChip" class="option-chip" onclick="deselectSpecial()">
+        <span id="chipIconContainer"></span>
+        <span class="chip-close">✕</span>
       </div>
 
-      <div class="action-row">
-        <div class="btn-circle" id="micBtn" onclick="toggleVoiceListening()">
-          <svg class="icon-svg" viewBox="0 0 24 24"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2M12 19v4M8 23h8"/></svg>
-        </div>
-        
-        <div class="btn-circle" onclick="triggerFilePicker()">
-          <svg class="icon-svg" viewBox="0 0 24 24"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg>
-        </div>
-        <input type="file" id="fileInput" style="display:none;" onchange="handleFileSelect(event)">
+      <div class="flex-spacer"></div>
 
-        <div class="option-chip" id="chip-coder">
-          <svg class="chip-icon" viewBox="0 0 24 24"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg>
-          <span>Coder Mode</span>
-          <span class="chip-close" onclick="deactivateOption('coder', event)">×</span>
-        </div>
-
-        <div class="option-chip" id="chip-image">
-          <svg class="chip-icon" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
-          <span>Imagine</span>
-          <span class="chip-close" onclick="deactivateOption('image', event)">×</span>
-        </div>
-
-        <div class="option-chip" id="chip-deep">
-          <svg class="chip-icon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
-          <span>Deep Thinking</span>
-          <span class="chip-close" onclick="deactivateOption('deep', event)">×</span>
-        </div>
-
-        <div class="flex-spacer"></div>
-        <button class="modes-btn" onclick="openSheet('modesSheet')">Capabilities</button>
+      <div class="btn-circle" id="micBtn" onclick="toggleVoice()">
+        <svg class="icon-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"></path><path d="M19 10v2a7 7 0 0 1-14 0v-2"></path><line x1="12" y1="19" x2="12" y2="23"></line><line x1="8" y1="23" x2="16" y2="23"></line></svg>
       </div>
+
+      <button class="modes-btn" id="modeBtn" onclick="openModes()">Ultra Fast</button>
     </div>
   </div>
+</div>
 
-  <div id="sheetOverlay" onclick="closeAllSheets()"></div>
-  <div class="modes-sheet" id="modesSheet">
-    <div class="sheet-handle-area" onclick="closeAllSheets()"><div class="sheet-handle"></div></div>
-    <div style="padding:0 20px 20px 20px;">
-      <h3 style="margin-top:0;margin-bottom:20px;">Choose Capability Engine</h3>
-      <div style="display:flex; flex-direction:column; gap:12px;">
-        <div class="quick-action-btn" style="flex-direction:row; justify-content:flex-start; padding:15px; text-align:left;" onclick="activateOption('coder')">
-          <svg class="qa-icon" viewBox="0 0 24 24"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg>
-          <div><strong>Developer Coder Pro</strong><br><span style="font-size:12px;opacity:0.7;">Refined logic and coding engineering execution tools</span></div>
-        </div>
-        <div class="quick-action-btn" style="flex-direction:row; justify-content:flex-start; padding:15px; text-align:left;" onclick="activateOption('image')">
-          <svg class="qa-icon" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
-          <div><strong>Creative Image Generator</strong><br><span style="font-size:12px;opacity:0.7;">Generate custom mockups and HD vector graphics assets</span></div>
-        </div>
-        <div class="quick-action-btn" style="flex-direction:row; justify-content:flex-start; padding:15px; text-align:left;" onclick="activateOption('deep')">
-          <svg class="qa-icon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
-          <div><strong>Deep Analytical Reasoning</strong><br><span style="font-size:12px;opacity:0.7;">Multi-pass processing architecture for complex analytics</span></div>
-        </div>
-      </div>
-    </div>
+<div id="settingsPanel" class="settings-panel">
+  <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
+    <b style="font-size: 22px;">Settings</b>
+    <button onclick="closeSettings()" style="background:#ef4444; border:none; padding:10px; border-radius:50%; color:white;">✕</button>
   </div>
+  <input type="checkbox" id="darkModeCheckbox" checked onchange="toggleDarkMode()"> Dark Mode
+</div>
 
-  <script>
-    // System Architecture App States
-    let chats = JSON.parse(localStorage.getItem('expoloom_chats')) || {};
-    let currentChat = localStorage.getItem('expoloom_current') || null;
-    let isGenerating = false;
-    let currentMode = "normal"; 
-    let activeAttachment = null;
-    let abortController = null;
+<script>
+let chats = JSON.parse(localStorage.getItem("chats")) || {};
+let currentChat = localStorage.getItem("lastChatId") || null;
+let currentMode = "ultrafast"; 
+let activeSpecial = null;
+let pendingFile = null;
+let abortController = null; 
+let isGenerating = false;
+let chatToDelete = null; 
+let chatToRename = null; 
 
-    // Elements
-    const chatBox = document.getElementById('chatBox');
-    const input = document.getElementById('userInput');
-    const sendBtn = document.getElementById('sendBtn');
-    const sidebar = document.getElementById('sidebar');
-    const titleLabel = document.getElementById('titleLabel');
-    const accountPanel = document.getElementById('accountPanel');
-    const attachmentPreview = document.getElementById('attachmentPreview');
-    const previewText = document.getElementById('previewText');
+const sidebar = document.getElementById("sidebar");
+let sideStartX = 0;
+sidebar.addEventListener('touchstart', e => sideStartX = e.touches[0].clientX);
+sidebar.addEventListener('touchmove', e => {
+    if (sideStartX - e.touches[0].clientX > 60 && sidebar.classList.contains("open")) toggleMenu();
+});
 
-    // ==========================================
-    // LIVE AUDIO REACTIVE DOT WAVE ENGINE CODE
-    // ==========================================
-    const canvas = document.getElementById('waveCanvas');
-    const ctx = canvas.getContext('2d');
-    const visualizerContainer = document.getElementById('visualizerContainer');
-    const micBtn = document.getElementById('micBtn');
+function updateHeaderTitle() {
+  const titleEl = document.getElementById("mainHeaderTitle");
+  if (currentChat && chats[currentChat] && chats[currentChat].name !== "New Chat") {
+    titleEl.innerText = chats[currentChat].name;
+  } else {
+    titleEl.innerText = "Expoloom AI";
+  }
+}
 
-    let audioCtx = null;
-    let analyser = null;
-    let microphone = null;
-    let dataArray = [];
-    let isListening = false;
-    let phase = 0;
-    let audioVolume = 0;
-    let animationId = null;
+function openOptions() { document.getElementById("optionsSheet").classList.add("open"); document.getElementById("optionsOverlay").style.display = "block"; }
+function closeOptions() { document.getElementById("optionsSheet").classList.remove("open"); document.getElementById("optionsOverlay").style.display = "none"; }
+function openModes() { document.getElementById("modesSheet").classList.add("open"); document.getElementById("sheetOverlay").style.display = "block"; }
+function closeModes() { document.getElementById("modesSheet").classList.remove("open"); document.getElementById("sheetOverlay").style.display = "none"; }
+function openSettings() { document.getElementById("settingsPanel").classList.add("open"); }
+function closeSettings() { document.getElementById("settingsPanel").classList.remove("open"); }
 
-    function resizeCanvas() {
-      const rect = canvas.getBoundingClientRect();
-      if (rect.width === 0 || rect.height === 0) return;
-      canvas.width = rect.width * window.devicePixelRatio;
-      canvas.height = rect.height * window.devicePixelRatio;
-      ctx.scale(window.devicePixelRatio, window.devicePixelRatio);
+function openChatActionSheet() { 
+  const pinText = document.getElementById("actionSheetPinText");
+  if (currentChat && chats[currentChat] && chats[currentChat].pinned) {
+    pinText.innerText = "Remove Pin";
+  } else {
+    pinText.innerText = "Pin Chat";
+  }
+  document.getElementById("chatActionSheet").classList.add("open"); 
+  document.getElementById("chatActionOverlay").style.display = "block"; 
+}
+function closeChatActionSheet() { document.getElementById("chatActionSheet").classList.remove("open"); document.getElementById("chatActionOverlay").style.display = "none"; }
+function handleCurrentChatPin() { closeChatActionSheet(); if (currentChat && chats[currentChat]) togglePin(currentChat); }
+function handleCurrentChatRename() { closeChatActionSheet(); if (currentChat && chats[currentChat]) renameChat(currentChat); }
+function handleCurrentChatDelete() { closeChatActionSheet(); if (currentChat && chats[currentChat]) deleteChat(currentChat); }
+
+function setSpecialOption(type) { activeSpecial = type; closeOptions(); updateOptionUI(); }
+function deselectSpecial() { activeSpecial = null; updateOptionUI(); }
+function updateOptionUI() {
+  const standardBtn = document.getElementById("standardOptionBtn");
+  const chip = document.getElementById("optionChip");
+  const iconContainer = document.getElementById("chipIconContainer");
+  if (activeSpecial) {
+    standardBtn.style.display = "none"; chip.classList.add("active");
+    iconContainer.innerHTML = (activeSpecial === 'deep_thinking') ? 
+      `<svg class="chip-icon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"></circle><path d="M12 16v-4M12 8h.01" stroke-linecap="round"/></svg>` :
+      `<svg class="chip-icon" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>`;
+  } else { standardBtn.style.display = "flex"; chip.classList.remove("active"); }
+}
+
+function setMode(m) {
+  currentMode = m;
+  const labels = { 'ultrafast': 'Ultra Fast', 'fast': 'Fast', 'thinking': 'Thinking', 'coder': 'Coder', 'pro': 'Pro' };
+  document.getElementById("modeBtn").innerText = labels[m];
+  document.querySelectorAll('.modes-sheet .mode-option').forEach(el => el.classList.remove('active'));
+  document.getElementById('opt-' + m).classList.add('active');
+  closeModes();
+}
+
+function handleFileUpload(input) {
+  if (input.files && input.files[0]) {
+    pendingFile = input.files[0];
+    document.getElementById("fileNameDisplay").innerText = pendingFile.name;
+    document.getElementById("filePreview").classList.add("active");
+  }
+}
+function clearAttachment() {
+  pendingFile = null;
+  document.getElementById("filePreview").classList.remove("active");
+  document.getElementById("fileInput").value = "";
+}
+
+// NEW: Whisper API Voice Recording & Logic state
+let mediaRecorder;
+let audioChunks = [];
+let audioCtx, analyser, dataArray;
+let visualizerAnimationId;
+let cancelTranscription = false; // Tells the recorder if we should ignore the audio or type it
+
+const visualizerCanvas = document.getElementById("audioVisualizer");
+const canvasCtx = visualizerCanvas.getContext("2d");
+
+async function toggleVoice() {
+  if (isGenerating) return;
+
+  const micBtn = document.getElementById("micBtn");
+  const voiceToTypeContainer = document.getElementById("voiceToTypeContainer");
+
+  // IF MIC BUTTON CLICKED WHILE RECORDING = CANCEL (Do Not Type)
+  if (mediaRecorder && mediaRecorder.state === "recording") {
+    cancelTranscription = true; // Tell the system to cancel
+    mediaRecorder.stop();
+    micBtn.classList.remove("listening");
+    visualizerCanvas.style.display = "none";
+    voiceToTypeContainer.style.display = "none";
+    if (audioCtx) {
+      audioCtx.close();
+      audioCtx = null;
     }
-    window.addEventListener('resize', resizeCanvas);
+    cancelAnimationFrame(visualizerAnimationId);
+    return;
+  }
 
-    function renderDotWaveLoop() {
-      const width = canvas.width / window.devicePixelRatio;
-      const height = canvas.height / window.devicePixelRatio;
-      const centerY = height / 2;
+  // START RECORDING
+  cancelTranscription = false;
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    
+    // Setup Audio Visualizer
+    audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    analyser = audioCtx.createAnalyser();
+    const source = audioCtx.createMediaStreamSource(stream);
+    source.connect(analyser);
+    analyser.fftSize = 128;
+    dataArray = new Uint8Array(analyser.frequencyBinCount);
+    
+    // Show UI Elements
+    visualizerCanvas.style.display = "block";
+    voiceToTypeContainer.style.display = "flex"; // Show the new "Voice to Type" button
+    micBtn.classList.add("listening");
+    drawVisualizer();
 
-      ctx.clearRect(0, 0, width, height);
+    // Setup Audio Recording for Whisper
+    mediaRecorder = new MediaRecorder(stream);
+    audioChunks = [];
 
-      // Compute volume smoothing logic dynamically (Lerp integration)
-      if (isListening && analyser) {
-        analyser.getByteFrequencyData(dataArray);
-        let total = 0;
-        for (let i = 0; i < dataArray.length; i++) {
-          total += dataArray[i];
-        }
-        let targetVolume = (total / dataArray.length) / 255;
-        audioVolume += (targetVolume - audioVolume) * 0.22;
-      } else {
-        audioVolume += (0 - audioVolume) * 0.12;
-      }
+    mediaRecorder.ondataavailable = (event) => {
+      audioChunks.push(event.data);
+    };
 
-      // Layered mathematical coordinate system definitions (Gemini/ChatGPT styled multi-lines)
-      const layeredWaves = [
-        { stroke: 'rgba(37, 99, 235, 0.85)',  amplitude: 8,  frequency: 0.015, speed: 0.05,  dash: [2, 5] },  /* Accent Blue Line */
-        { stroke: 'rgba(155, 114, 203, 0.75)', amplitude: 12, frequency: 0.010, speed: -0.04, dash: [2, 6] },  /* Purple Shift Line */
-        { stroke: 'rgba(217, 101, 112, 0.65)', amplitude: 6,  frequency: 0.022, speed: 0.07,  dash: [1, 4] }   /* Coral High Pitch Line */
-      ];
-
-      layeredWaves.forEach(wave => {
-        ctx.beginPath();
-        ctx.strokeStyle = wave.stroke;
-        ctx.lineWidth = 2.5;
-        ctx.lineCap = 'round';
-        ctx.setLineDash(wave.dash); // Creates pristine rounded dots sequence
-
-        // The line expands seamlessly based on how loudly the incoming sound registers
-        const dynamicAmplitude = wave.amplitude * (0.3 + (audioVolume * 4.5));
-
-        for (let x = 0; x <= width; x += 1.5) {
-          // Normalization Tapering function creating clean left/right organic pinch bounds
-          const normalizedTaper = Math.sin((x / width) * Math.PI);
-          
-          // Render sine equation path point nodes mapping continuous space coordinates
-          const y = centerY + Math.sin(x * wave.frequency + phase * wave.speed) * dynamicAmplitude * normalizedTaper;
-
-          if (x === 0) {
-            ctx.moveTo(x, y);
-          } else {
-            ctx.lineTo(x, y);
-          }
-        }
-        ctx.stroke();
-      });
-
-      phase += 1;
-      animationId = requestAnimationFrame(renderDotWaveLoop);
-    }
-
-    async function toggleVoiceListening() {
-      if (audioCtx && audioCtx.state === 'suspended') {
-        await audioCtx.resume();
-      }
-
-      if (!isListening) {
-        try {
-          if (!audioCtx) {
-            audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-          }
-          const stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
-          
-          microphone = audioCtx.createMediaStreamSource(stream);
-          analyser = audioCtx.createAnalyser();
-          analyser.fftSize = 256;
-          
-          dataArray = new Uint8Array(analyser.frequencyBinCount);
-          microphone.connect(analyser);
-          
-          isListening = true;
-          micBtn.classList.add('listening');
-          visualizerContainer.style.display = 'flex';
-          resizeCanvas();
-          
-          input.placeholder = "Listening... Speak now";
-        } catch (err) {
-          console.error("Hardware Microphone capture block encountered: ", err);
-          alert("Microphone permission denied or device unavailable.");
-          return;
-        }
-      } else {
-        // Safe disconnection pipeline flow reverting states cleanly
-        isListening = false;
-        micBtn.classList.remove('listening');
-        visualizerContainer.style.display = 'none';
-        input.placeholder = "Ask anything...";
-        
-        if (microphone && microphone.mediaStream) {
-          microphone.mediaStream.getTracks().forEach(track => track.stop());
-        }
-      }
-    }
-
-    // Fire Up Animation Frame Loops immediately to provide ambient fluid motion when container displays
-    renderDotWaveLoop();
-
-
-    // ==========================================
-    // SYSTEM CORE APPLICATION RUNTIME LOGIC
-    // ==========================================
-    function init() {
-      const chatIds = Object.keys(chats);
-      if (chatIds.length === 0) {
-        createNewChat();
-      } else {
-        if (!currentChat || !chats[currentChat]) {
-          currentChat = chatIds[0];
-        }
-        renderChats();
-        renderMessages();
-      }
-    }
-
-    function toggleSidebar() {
-      sidebar.classList.toggle('closed');
-      setTimeout(resizeCanvas, 310); // Sync visualizer canvas width transitions safely
-    }
-
-    function toggleTheme() {
-      document.body.classList.toggle('dark-theme');
-    }
-
-    function toggleAccountPanel() {
-      accountPanel.style.display = accountPanel.style.display === 'block' ? 'none' : 'block';
-    }
-
-    function autoGrow(element) {
-      element.style.height = "auto";
-      element.style.height = (element.scrollHeight) + "px";
-    }
-
-    function triggerFilePicker() {
-      document.getElementById('fileInput').click();
-    }
-
-    function handleFileSelect(e) {
-      const file = e.target.files[0];
-      if (!file) return;
-
-      const reader = new FileReader();
-      reader.onload = function(evt) {
-        activeAttachment = {
-          name: file.name,
-          type: file.type,
-          data: evt.target.result
-        };
-        previewText.innerText = file.name;
-        attachmentPreview.classList.add('active');
-      };
-
-      if (file.type.startsWith('image/')) {
-        reader.readAsDataURL(file);
-      } else {
-        reader.readAsText(file);
-      }
-    }
-
-    function clearAttachment() {
-      activeAttachment = null;
-      attachmentPreview.classList.remove('active');
-      document.getElementById('fileInput').value = "";
-    }
-
-    function openSheet(id) {
-      document.getElementById('sheetOverlay').style.display = 'block';
-      document.getElementById(id).classList.add('open');
-    }
-
-    function closeAllSheets() {
-      document.getElementById('sheetOverlay').style.display = 'none';
-      document.querySelectorAll('.modes-sheet, .options-sheet').forEach(s => s.classList.remove('open'));
-    }
-
-    function activateOption(mode) {
-      currentMode = mode;
-      document.querySelectorAll('.option-chip').forEach(c => c.classList.remove('active'));
+    mediaRecorder.onstop = async () => {
+      stream.getTracks().forEach(track => track.stop());
       
-      if(mode === 'coder') {
-        document.getElementById('chip-coder').classList.add('active');
-        titleLabel.innerText = "Expoloom AI (Coder Mode)";
-      } else if(mode === 'image') {
-        document.getElementById('chip-image').classList.add('active');
-        titleLabel.innerText = "Expoloom AI (Imagine Studio)";
-      } else if(mode === 'deep') {
-        document.getElementById('chip-deep').classList.add('active');
-        titleLabel.innerText = "Expoloom AI (Deep Thinking)";
-      }
-      closeAllSheets();
-    }
+      // If the user cancelled by clicking the Mic button, stop completely right here.
+      if (cancelTranscription) return; 
 
-    function deactivateOption(mode, event) {
-      if(event) event.stopPropagation();
-      currentMode = "normal";
-      document.getElementById('chip-' + mode).classList.remove('active');
-      titleLabel.innerText = "Expoloom AI";
-    }
+      // Otherwise, process and send to Whisper
+      const audioBlob = new Blob(audioChunks, { type: 'audio/webm' });
+      const input = document.getElementById("input");
+      const originalPlaceholder = input.placeholder;
+      input.placeholder = "Listening & Transcribing...";
+      input.disabled = true;
 
-    function save() {
-      localStorage.setItem('expoloom_chats', JSON.stringify(chats));
-      localStorage.setItem('expoloom_current', currentChat);
-    }
-
-    function renderChats() {
-      const list = document.getElementById('chatList');
-      list.innerHTML = "";
-      
-      // Sort structural keys matching chronologically descending arrays
-      const sortedKeys = Object.keys(chats).sort((a,b) => (chats[b].timestamp || 0) - (chats[a].timestamp || 0));
-
-      sortedKeys.forEach(id => {
-        const c = chats[id];
-        const container = document.createElement('div');
-        container.className = `chat-item-container ${id === currentChat ? 'active' : ''}`;
-        container.onclick = () => switchChat(id);
-
-        const wrapper = document.createElement('div');
-        wrapper.className = 'chat-name-wrapper';
-
-        if (c.pinned) {
-          wrapper.innerHTML = `<svg class="pin-icon" viewBox="0 0 24 24"><path d="M16 12V4h1V2H7v2h1v8l-2 2v2h5.2v6h1.6v-6H18v-2z"/></svg>`;
-        }
-
-        const nameEl = document.createElement('span');
-        nameEl.className = 'chat-name';
-        nameEl.innerText = c.name || "New Chat";
-        wrapper.appendChild(nameEl);
-        container.appendChild(wrapper);
-
-        const dots = document.createElement('span');
-        dots.className = 'dots';
-        dots.innerText = '···';
-        dots.onclick = (e) => {
-          e.stopPropagation();
-          showChatMenu(id, dots);
-        };
-        container.appendChild(dots);
-
-        list.appendChild(container);
-      });
-    }
-
-    function renderMessages() {
-      chatBox.innerHTML = "";
-      const messages = chats[currentChat]?.messages || [];
-
-      if (messages.length === 0) {
-        chatBox.innerHTML = `
-          <div class="empty-chat-container">
-            <div class="empty-chat-title">What can I help with today?</div>
-            <div class="quick-action-grid">
-              <div class="quick-action-btn" onclick="quickPrompt('Write custom HTML/CSS responsive grid script layout')">
-                <svg class="qa-icon" viewBox="0 0 24 24"><polygon points="5 3 19 12 5 21 5 3"/></svg>
-                <span>Write Code</span>
-              </div>
-              <div class="quick-action-btn" onclick="quickPrompt('Design modern clean dynamic mockup blueprint graphic concepts')">
-                <svg class="qa-icon" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
-                <span>Imagine Graphics</span>
-              </div>
-              <div class="quick-action-btn" onclick="quickPrompt('Analyze deep monetization strategies and scalability metrics for startup apparel brand')">
-                <svg class="qa-icon" viewBox="0 0 24 24"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
-                <span>Analyze Plans</span>
-              </div>
-            </div>
-          </div>`;
-        return;
-      }
-
-      messages.forEach(m => {
-        if(m.role === 'system') return;
-        const msgDiv = document.createElement('div');
-        msgDiv.className = `message ${m.role === 'user' ? 'user' : 'bot'}`;
-        
-        let txt = m.parts?.[0]?.text || "";
-        msgDiv.innerText = txt;
-        chatBox.appendChild(msgDiv);
-      });
-      chatBox.scrollTop = chatBox.scrollHeight;
-    }
-
-    function quickPrompt(text) {
-      input.value = text;
-      autoGrow(input);
-      sendMessage();
-    }
-
-    function switchChat(id) {
-      if(isGenerating) return;
-      currentChat = id;
-      save();
-      renderChats();
-      renderMessages();
-      if(window.innerWidth < 768) sidebar.classList.add('closed');
-    }
-
-    function showChatMenu(id, dotsEl) {
-      document.querySelectorAll('.chat-menu').forEach(m => m.remove());
-      
-      const menu = document.createElement('div');
-      menu.className = 'chat-menu';
-      menu.style.display = 'flex';
-
-      const isPinned = chats[id].pinned;
-      menu.innerHTML = `
-        <div onclick="togglePinChat('${id}')">${isPinned ? 'Unpin' : 'Pin Chat'}</div>
-        <div onclick="deleteChat('${id}')">Delete</div>
-      `;
-
-      dotsEl.parentElement.appendChild(menu);
-    }
-
-    function togglePinChat(id) {
-      chats[id].pinned = !chats[id].pinned;
-      save(); renderChats();
-    }
-
-    function deleteChat(id) {
-      delete chats[id];
-      const remaining = Object.keys(chats);
-      if(remaining.length === 0) {
-        createNewChat();
-      } else {
-        if(currentChat === id) currentChat = remaining[0];
-        save(); renderChats(); renderMessages();
-      }
-    }
-
-    // ==========================================
-    // SERVER CONNECTION STREAM GENERATION PIPELINE
-    // ==========================================
-    async function sendMessage() {
-      const msgText = input.value.trim();
-      if ((!msgText && !activeAttachment) || isGenerating) return;
-
-      if(isListening) {
-        await toggleVoiceListening(); // Stop microphone recording systematically on send invocation
-      }
-
-      // Initialize structures inside system arrays mapping conversation histories
-      if (!chats[currentChat].messages) chats[currentChat].messages = [];
-      
-      let compositeText = msgText;
-      if (activeAttachment) {
-        compositeText += `\n\n[Attached File: ${activeAttachment.name}]`;
-      }
-
-      chats[currentChat].messages.push({ role: "user", parts: [{ text: compositeText }] });
-      
-      // Reset input layout boxes immediately to balance tracking registers
-      input.value = "";
-      input.style.height = "44px";
-      clearAttachment();
-      renderMessages();
-
-      isGenerating = true;
-      sendBtn.innerHTML = "Stop";
-      sendBtn.style.backgroundColor = "#ef4444";
-      
-      // Inject shimmering skeleton placeholder loading status animations
-      const loadingDiv = document.createElement('div');
-      loadingDiv.className = "loading-container";
-      loadingDiv.id = "loadingPlaceholder";
-      loadingDiv.innerHTML = '<div class="loading-bar"></div><div class="loading-bar" style="width:85%;"></div>';
-      chatBox.appendChild(loadingDiv);
-      chatBox.scrollTop = chatBox.scrollHeight;
-
-      abortController = new AbortController();
+      const formData = new FormData();
+      formData.append("file", audioBlob, "audio.webm");
 
       try {
-        // Construct the history message payload matching back-end signature expectations
-        const mappedHistory = chats[currentChat].messages.map(m => ({
-          role: m.role,
-          content: m.parts[0].text
-        }));
-
-        const apiPayload = {
-          messages: mappedHistory,
-          mode: currentMode
-        };
-
-        const response = await fetch('/api/chat', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(apiPayload),
-          signal: abortController.signal
+        const response = await fetch("/chat", {
+          method: "POST",
+          body: formData
         });
-
-        document.getElementById('loadingPlaceholder')?.remove();
-
-        if (!response.ok) throw new Error("Server transmission error code verified.");
-
-        const botMsgDiv = document.createElement('div');
-        botMsgDiv.className = "message bot";
-        chatBox.appendChild(botMsgDiv);
-
-        const reader = response.body.getReader();
-        const decoder = new TextDecoder();
-        let botResponseAccumulator = "";
-
-        while (true) {
-          const { value, done } = await reader.read();
-          if (done) break;
-
-          const chunkText = decoder.decode(value);
-          const lines = chunkText.split('\n');
-
-          for (let line of lines) {
-            if (line.startsWith('data: ')) {
-              const dataStr = line.slice(5).trim();
-              if (dataStr === '[DONE]') break;
-
-              try {
-                const parsed = JSON.parse(dataStr);
-                const delta = parsed.choices?.[0]?.delta?.content || "";
-                botResponseAccumulator += delta;
-                botMsgDiv.innerText = botResponseAccumulator;
-                chatBox.scrollTop = chatBox.scrollHeight;
-              } catch (e) {
-                // Skips parsing error exceptions silently for streaming line splits
-              }
-            }
-          }
-        }
-
-        // Commit newly formed server messages securely back down onto storage layers
-        chats[currentChat].messages.push({ role: "model", parts: [{ text: botResponseAccumulator }] });
         
-        if (chats[currentChat].name === "New Chat" && chats[currentChat].messages.length <= 3) {
-          chats[currentChat].name = msgText.substring(0, 16) || "Active Chat Session";
-        }
-
-      } catch (err) {
-        document.getElementById('loadingPlaceholder')?.remove();
-        if (err.name === 'AbortError') {
-          console.log("Transmission aborted cleanly.");
+        if (response.ok) {
+           const data = await response.json();
+           if (data.text) {
+             input.value = (input.value + " " + data.text).trim();
+             autoExpand(input);
+           }
         } else {
-          chats[currentChat].messages.push({ role: "model", parts: [{ text: "Expoloom AI is temporarily unavailable. Please try again." }] });
+           throw new Error("API Error");
         }
+      } catch (e) {
+        alert("Failed to transcribe audio.");
       } finally {
-        isGenerating = false;
-        sendBtn.innerHTML = "Send";
-        sendBtn.style.backgroundColor = "var(--accent-blue)";
-        abortController = null;
-        
-        chats[currentChat].timestamp = Date.now();
-        save(); renderChats(); renderMessages();
-      }
-    }
-
-    function createNewChat() {
-      if(isGenerating) return;
-      const id = "Chat_" + Date.now();
-      chats[id] = { name: "New Chat", messages: [], pinned: false, timestamp: Date.now() };
-      currentChat = id;
-      save(); renderChats(); renderMessages();
-      if(window.innerWidth < 768) sidebar.classList.add('closed');
-    }
-
-    // Global clear overlays handler event hooks
-    window.onclick = (e) => {
-      if (!e.target.closest('.dots') && !e.target.closest('.chat-menu')) {
-        document.querySelectorAll('.chat-menu').forEach(m => m.style.display = 'none');
-      }
-      if (!e.target.closest('.profile-btn') && !e.target.closest('.account-panel')) {
-        accountPanel.style.display = 'none';
+        input.placeholder = originalPlaceholder;
+        input.disabled = false;
+        input.focus();
       }
     };
 
-    // System Startup Initializer Triggering
-    init();
-  </script>
+    mediaRecorder.start();
+
+  } catch (err) {
+    alert("Could not access microphone.");
+  }
+}
+
+// NEW FUNCTION: TRIGGERED BY THE "✨ VOICE TO TYPE" BUTTON
+function processVoiceToType() {
+  if (mediaRecorder && mediaRecorder.state === "recording") {
+    cancelTranscription = false; // Confirms we WANT to type the words
+    mediaRecorder.stop();
+    
+    // Hide recording UI
+    document.getElementById("micBtn").classList.remove("listening");
+    document.getElementById("audioVisualizer").style.display = "none";
+    document.getElementById("voiceToTypeContainer").style.display = "none";
+    
+    if (audioCtx) {
+      audioCtx.close();
+      audioCtx = null;
+    }
+    cancelAnimationFrame(visualizerAnimationId);
+  }
+}
+
+function drawVisualizer() {
+  if (!audioCtx) return;
+  visualizerAnimationId = requestAnimationFrame(drawVisualizer);
+  analyser.getByteFrequencyData(dataArray);
+
+  canvasCtx.clearRect(0, 0, visualizerCanvas.width, visualizerCanvas.height);
+  
+  let barWidth = (visualizerCanvas.width / analyser.frequencyBinCount) * 2;
+  let barHeight;
+  let x = 0;
+
+  for(let i = 0; i < analyser.frequencyBinCount; i++) {
+    barHeight = (dataArray[i] / 255) * visualizerCanvas.height;
+    if (barHeight < 2) barHeight = 2; // Minimum height for the dot aesthetic
+
+    canvasCtx.fillStyle = '#2563eb'; // Expoloom Blue
+    
+    // Draw centered vertical line/dot
+    const y = (visualizerCanvas.height - barHeight) / 2;
+    
+    canvasCtx.beginPath();
+    canvasCtx.roundRect(x, y, barWidth - 2, barHeight, 5); 
+    canvasCtx.fill();
+    
+    x += barWidth;
+  }
+}
+
+function save() { localStorage.setItem("chats", JSON.stringify(chats)); localStorage.setItem("lastChatId", currentChat); }
+function autoExpand(t) { t.style.height = 'auto'; t.style.height = t.scrollHeight + 'px'; }
+
+function toggleMenu() {
+  const sidebar = document.getElementById("sidebar");
+  if (window.innerWidth > 768) {
+    sidebar.classList.toggle("closed");
+    sidebar.classList.remove("open");
+  } else {
+    sidebar.classList.toggle("open");
+    sidebar.classList.remove("closed");
+  }
+}
+
+function toggleDarkMode() { document.body.classList.toggle("dark-theme", document.getElementById("darkModeCheckbox").checked); }
+function toggleAccount(e) { e.stopPropagation(); const p = document.getElementById("accountPanel"); p.style.display = (p.style.display === "block") ? "none" : "block"; }
+
+function getLocalTimestamp(ts) {
+  if (!ts) return Date.now();
+  if (typeof ts === 'number') return ts;
+  
+  if (typeof ts === 'string') {
+    let cleanTs = ts.trim();
+    cleanTs = cleanTs.replace(" ", "T");
+    
+    const dotIndex = cleanTs.lastIndexOf(".");
+    if (dotIndex !== -1) {
+      let base = cleanTs.substring(0, dotIndex);
+      let rest = cleanTs.substring(dotIndex + 1);
+      
+      let digits = "";
+      let tzMarker = "";
+      for (let i = 0; i < rest.length; i++) {
+        if (/[0-9]/.test(rest[i])) {
+          digits += rest[i];
+        } else {
+          tzMarker = rest.substring(i);
+          break;
+        }
+      }
+      cleanTs = base + "." + digits.substring(0, 3) + tzMarker;
+    }
+    
+    let d = new Date(cleanTs);
+    return isNaN(d.getTime()) ? Date.now() : d.getTime();
+  }
+  return Date.now();
+}
+
+function renderChats() {
+  updateHeaderTitle();
+  const list = document.getElementById("chatList");
+  list.innerHTML = "";
+  
+  const buckets = {
+    today: [],
+    yesterday: [],
+    weekly: {},
+    monthly: {}
+  };
+
+  const now = new Date();
+  const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+  const startOfYesterday = startOfToday - (24 * 60 * 60 * 1000);
+  const startOfSevenDaysAgo = startOfToday - (6 * 24 * 60 * 60 * 1000);
+
+  const sortedEntries = Object.entries(chats).sort((a, b) => {
+    if (a[1].pinned && !b[1].pinned) return -1;
+    if (!a[1].pinned && b[1].pinned) return 1;
+    return getLocalTimestamp(b[1].timestamp) - getLocalTimestamp(a[1].timestamp);
+  });
+
+  sortedEntries.forEach(([id, chat]) => {
+    const chatTime = getLocalTimestamp(chat.timestamp);
+    const chatDate = new Date(chatTime);
+    
+    const chatDayStart = new Date(chatDate.getFullYear(), chatDate.getMonth(), chatDate.getDate()).getTime();
+
+    if (chatDayStart === startOfToday) {
+      buckets.today.push({ id, chat });
+    } else if (chatDayStart === startOfYesterday) {
+      buckets.yesterday.push({ id, chat });
+    } else if (chatDayStart >= startOfSevenDaysAgo) {
+      const weekday = chatDate.toLocaleDateString('en-US', { weekday: 'long' });
+      if (!buckets.weekly[weekday]) buckets.weekly[weekday] = [];
+      buckets.weekly[weekday].push({ id, chat });
+    } else {
+      const monthYear = chatDate.toLocaleDateString('en-US', { day: 'numeric', month: 'long' });
+      if (!buckets.monthly[monthYear]) buckets.monthly[monthYear] = [];
+      buckets.monthly[monthYear].push({ id, chat });
+    }
+  });
+
+  const appendHeader = (text) => {
+    const lbl = document.createElement("div");
+    lbl.className = "recent-label";
+    lbl.style.fontWeight = "bold";
+    lbl.style.marginTop = "12px";
+    lbl.innerText = text;
+    list.appendChild(lbl);
+  };
+
+  const appendChatItems = (items) => {
+    items.forEach(({ id, chat }) => {
+      const div = document.createElement("div");
+      const activeClass = id === currentChat ? 'active' : '';
+      div.className = `chat-item-container ${activeClass}`;
+      
+      const pinSVG = chat.pinned ? `
+        <svg class="pin-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256">
+          <path d="M228.66,84.69l-57.35-57.3a8,8,0,0,0-11.31,0L115.68,71.68l-37-8.15a8,8,0,0,0-7.79,2.69l-24,28.8a8,8,0,0,0,1,11.33L85.23,138,42.34,180.93a8,8,0,0,0,0,11.31l21.41,21.42a8,8,0,0,0,11.32,0L118,170.77l31.62,37.37a8,8,0,0,0,11.33,1l28.8-24a8,8,0,0,0,2.69-7.79l-8.15-37,44.32-44.32A8,8,0,0,0,228.66,84.69ZM154,161l-36.65-43.32a8,8,0,0,0-6.1-2.78l-40.35,3.67,16.58-19.9L129.21,140.4a8,8,0,0,0,10.6,1l36.31-28.18-28.19,36.31a8,8,0,0,0,1,10.6l41.74,41.74-19.9,16.58,3.67-40.35A8,8,0,0,0,171.69,172l-43.33-36.65a8,8,0,0,0-11.24,1L82.8,170.67,71.49,159.35l34.34-34.33a8,8,0,0,0,1-11.24L70.19,70.44l33.8-33.8L145.72,78.37a8,8,0,0,0,11.24-1l34.33-34.34,11.31,11.32Z"></path>
+        </svg>
+      ` : '';
+
+      div.innerHTML = `
+        <div class="chat-name-wrapper" onclick="switchChat('${id}')">
+          ${pinSVG}
+          <span class="chat-name">${chat.name}</span>
+        </div>
+        <div class="dots" onclick="openChatMenu(event, '${id}')">⋮</div>
+        <div id="menu-${id}" class="chat-menu" onclick="event.stopPropagation()">
+          <div onclick="togglePin('${id}')">${chat.pinned ? 'Remove Pin' : 'Pin'}</div>
+          <div onclick="renameChat('${id}')">Rename</div>
+          <div onclick="deleteChat('${id}')">Delete</div>
+        </div>`;
+      list.appendChild(div);
+    });
+  };
+
+  if (buckets.today.length > 0) { appendHeader("Today"); appendChatItems(buckets.today); }
+  if (buckets.yesterday.length > 0) { appendHeader("Yesterday"); appendChatItems(buckets.yesterday); }
+  
+  Object.keys(buckets.weekly).forEach(day => {
+    appendHeader(day);
+    appendChatItems(buckets.weekly[day]);
+  });
+
+  Object.keys(buckets.monthly).forEach(monthGroup => {
+    appendHeader(monthGroup);
+    appendChatItems(buckets.monthly[monthGroup]);
+  });
+}
+
+function togglePin(id) { chats[id].pinned = !chats[id].pinned; save(); renderChats(); }
+
+function renameChat(id) {
+  chatToRename = id;
+  const input = document.getElementById("renameChatInput");
+  input.value = chats[id].name;
+  document.getElementById("renameConfirmOverlay").style.display = "flex";
+  
+  setTimeout(() => input.focus(), 100);
+}
+
+function closeRenameModal() {
+  chatToRename = null;
+  document.getElementById("renameConfirmOverlay").style.display = "none";
+}
+
+function confirmRenameAction() {
+  if (chatToRename) {
+    const newName = document.getElementById("renameChatInput").value;
+    if (newName !== null && newName.trim() !== "") { 
+      chats[chatToRename].name = newName.trim(); 
+      save(); 
+      renderChats(); 
+    }
+    closeRenameModal();
+  }
+}
+
+function switchChat(id) { 
+  currentChat = id; renderMessages(); renderChats(); 
+  if(window.innerWidth < 768) sidebar.classList.remove("open"); 
+}
+
+function openChatMenu(e, id) { 
+  e.stopPropagation(); 
+  document.querySelectorAll('.chat-menu').forEach(m => m.style.display = 'none'); 
+  document.getElementById(`menu-${id}`).style.display = 'flex'; 
+}
+
+function deleteChat(id) { 
+  chatToDelete = id;
+  document.getElementById("deleteConfirmOverlay").style.display = "flex";
+}
+
+function closeDeleteModal() {
+  chatToDelete = null;
+  document.getElementById("deleteConfirmOverlay").style.display = "none";
+}
+
+function confirmDeleteAction() {
+  if (chatToDelete) {
+    delete chats[chatToDelete];
+    currentChat = Object.keys(chats)[0] || null;
+    save();
+    renderChats();
+    renderMessages();
+    closeDeleteModal();
+  }
+}
+
+function renderMessages() {
+  const box = document.getElementById("chat"); 
+  box.innerHTML = "";
+  if (!currentChat || !chats[currentChat]) return;
+  
+  if (chats[currentChat].messages.length === 0) {
+    box.innerHTML = `
+      <div class="empty-chat-container">
+        <div class="empty-chat-title">How can I help you today?</div>
+        <div class="quick-action-grid">
+          <a href="#coder-mode" class="quick-action-btn" onclick="setMode('coder'); document.getElementById('input').focus(); return false;">
+            <svg class="qa-icon" viewBox="0 0 24 24"><polyline points="16 18 22 12 16 6"></polyline><polyline points="8 6 2 12 8 18"></polyline></svg>
+            <span>Coding Assistant</span>
+          </a>
+          <a href="#image-generation" class="quick-action-btn" onclick="setSpecialOption('image_gen'); document.getElementById('input').focus(); return false;">
+            <svg class="qa-icon" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect><circle cx="8.5" cy="8.5" r="1.5"></circle><polyline points="21 15 16 10 5 21"></polyline></svg>
+            <span>Image Generation</span>
+          </a>
+          <a href="#deep-thinking" class="quick-action-btn" onclick="setSpecialOption('deep_thinking'); document.getElementById('input').focus(); return false;">
+            <svg class="qa-icon" viewBox="0 0 24 24"><path d="M9.59 4.59A2 2 0 1 1 11 8H2m10.59 11.41A2 2 0 1 0 14 16H2m15.73-8.27A2.5 2.5 0 1 1 19.5 12H2"></path></svg>
+            <span>Deep Thinking</span>
+          </a>
+        </div>
+      </div>
+    `;
+    return;
+  }
+
+  chats[currentChat].messages.forEach(msg => {
+    const div = document.createElement("div");
+    div.className = "message " + (msg.role === "user" ? "user" : "bot");
+    if (msg.parts[0].isImage) {
+      div.innerHTML = `<img src="${msg.parts[0].text}" style="width: 100%; border-radius: 10px; display: block;" alt="AI Generated Image">`;
+    } else {
+      div.innerHTML = msg.parts[0].text.replace(/\n/g, '<br>');
+    }
+    box.appendChild(div);
+  });
+  box.scrollTop = box.scrollHeight;
+}
+
+function showLoading() {
+    const box = document.getElementById("chat");
+    const loader = document.createElement("div");
+    loader.id = "gemini-loader";
+    loader.className = "loading-container";
+    loader.innerHTML = `<div class="loading-bar"></div><div class="loading-bar" style="width:80%"></div>`;
+    box.appendChild(loader); box.scrollTop = box.scrollHeight;
+}
+function removeLoading() { const l = document.getElementById("gemini-loader"); if(l) l.remove(); }
+
+async function askAI() {
+  const input = document.getElementById("input");
+  const sendBtn = document.getElementById("sendBtn");
+
+  if (isGenerating) {
+    if (abortController) abortController.abort();
+    return;
+  }
+
+  const msgText = input.value.trim();
+  if (!msgText && !pendingFile) return;
+
+  const imageKeywords = ['generate', 'image', 'picture', 'draw', 'create'];
+  const mentionsImage = imageKeywords.some(word => msgText.toLowerCase().includes(word));
+  
+  if (mentionsImage && activeSpecial !== 'image_gen') {
+    if (!chats[currentChat]) createNewChat();
+    chats[currentChat].messages.push({ role: "user", parts: [{ text: msgText }] });
+    chats[currentChat].messages.push({ 
+      role: "model", 
+      parts: [{ text: "Please enable **Images Generation** mode from the options menu to create visual assets." }] 
+    });
+    input.value = "";
+    chats[currentChat].timestamp = Date.now();
+    save(); renderMessages(); renderChats();
+    return;
+  }
+
+  let combined = msgText;
+  if (pendingFile) combined = `📎 Attached: ${pendingFile.name}\n${msgText}`;
+
+  if (!chats[currentChat]) createNewChat();
+  chats[currentChat].messages.push({ role: "user", parts: [{ text: combined }] });
+  renderMessages();
+  input.value = ""; input.style.height = "auto";
+  clearAttachment();
+  showLoading();
+
+  isGenerating = true;
+  abortController = new AbortController();
+  
+  sendBtn.innerHTML = "■ Stop";
+  sendBtn.style.backgroundColor = "#ef4444";
+  input.disabled = true;
+  input.placeholder = "Generating response...";
+
+  let conversationPayload = [...chats[currentChat].messages];
+  conversationPayload.unshift({ role: 'system', parts: [{ text: 'Your name is Expoloom AI. You were created by the Expoloom Team. Always identify as Expoloom AI and never as a Google model.' }] });
+
+  try {
+    const res = await fetch("/chat", {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ 
+        messages: conversationPayload, 
+        mode: activeSpecial || currentMode 
+      }),
+      signal: abortController.signal
+    });
+
+    const contentType = res.headers.get("content-type");
+    removeLoading();
+
+    if (contentType && contentType.includes("application/json")) {
+      const data = await res.json();
+      if (res.ok) {
+        if (data.image) {
+          chats[currentChat].messages.push({
+            role: "model",
+            parts: [{ text: data.image, isImage: true }]
+          });
+        } else if (data.candidates) {
+          chats[currentChat].messages.push(data.candidates[0].content);
+        }
+      } else { throw new Error(); }
+    } 
+    else if (res.ok && res.body) {
+      const reader = res.body.getReader();
+      const decoder = new TextDecoder();
+      
+      let botMessage = { role: "model", parts: [{ text: "" }] };
+      chats[currentChat].messages.push(botMessage);
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        const chunk = decoder.decode(value, { stream: true });
+        const lines = chunk.split("\n");
+
+        for (const line of lines) {
+          if (line.startsWith("data: ") && line !== "data: [DONE]") {
+            try {
+              const data = JSON.parse(line.substring(6));
+              const content = data.choices[0]?.delta?.content || "";
+              botMessage.parts[0].text += content;
+              renderMessages(); 
+            } catch (e) {
+              console.error("Chunk parsing error", e);
+            }
+          }
+        }
+      }
+    } else {
+      throw new Error();
+    }
+
+    if(chats[currentChat].messages.length <= 3 && chats[currentChat].name === "New Chat") {
+        chats[currentChat].name = msgText.substring(0, 15);
+    }
+  } catch (e) {
+    removeLoading();
+    if (e.name === 'AbortError') {
+      console.log("Generation stopped by user.");
+    } else {
+      chats[currentChat].messages.push({ role: "model", parts: [{ text: "Expoloom AI is temporarily unavailable. Please try again." }] });
+    }
+  } finally {
+    isGenerating = false;
+    sendBtn.innerHTML = "Send";
+    sendBtn.style.backgroundColor = "var(--accent-blue)";
+    input.disabled = false;
+    input.placeholder = "Ask anything...";
+    input.focus(); 
+    
+    chats[currentChat].timestamp = Date.now();
+    save(); renderMessages(); renderChats();
+  }
+}
+
+function createNewChat() { 
+  const id = "Chat_" + Date.now(); 
+  chats[id] = { name: "New Chat", messages: [], pinned: false, timestamp: Date.now() }; 
+  currentChat = id; 
+  save(); renderChats(); renderMessages(); 
+  if(window.innerWidth < 768) sidebar.classList.remove("open");
+}
+
+window.onclick = (e) => { 
+  if (!e.target.closest('.dots') && !e.target.closest('.chat-menu')) {
+    document.querySelectorAll('.chat-menu').forEach(m => m.style.display = 'none'); 
+  }
+  if (!e.target.closest('.profile-btn') && !e.target.closest('#accountPanel')) {
+    document.getElementById("accountPanel").style.display = "none"; 
+  }
+};
+
+if(!currentChat) createNewChat(); else { renderChats(); renderMessages(); }
+</script>
 </body>
 </html>
