@@ -10,9 +10,10 @@ export async function onRequest(context) {
   let monthTotal = 0;
   let deviceLogs = [];
   
-  // NEW: Tracking counters for the API Key usage
+  // Tracking counters for the API Key usage
   let gemDataTotal = 0;
   let gDataTotal = 0;
+  let imgDataTotal = 0; // NEW: Image Data Tracker
   
   // Initialize graphs datasets with 0s
   let todayHourly = Array(24).fill(0);
@@ -21,7 +22,7 @@ export async function onRequest(context) {
   let weekHourly = Array(7).fill(0).map(() => Array(24).fill(0));
 
   try {
-    // 1. Fetch ALL logs for the current calendar month from Supabase (Max 5000 records for the analytics engine)
+    // 1. Fetch ALL logs for the current calendar month from Supabase
     const supabaseResponse = await fetch(
       `${env.SUPABASE_URL}/rest/v1/ai_usage_logs?select=created_at,device_name&order=id.desc&limit=5000`, 
       {
@@ -54,12 +55,14 @@ export async function onRequest(context) {
       const pDay = pDate.getDate();
       const pHour = pDate.getHours();
 
-      // NEW: Increment API Key tracking safely based on the tags we added in chat.js
+      // Increment API Key tracking safely based on the tags we added in chat.js
       if (log.device_name) {
           if (log.device_name.includes('G Data')) {
               gDataTotal++;
           } else if (log.device_name.includes('Gem Data')) {
               gemDataTotal++;
+          } else if (log.device_name.includes('Img Data')) {
+              imgDataTotal++;
           }
       }
 
@@ -88,7 +91,6 @@ export async function onRequest(context) {
 
           // Build item formatting for the "Live Device Activity" section
           if (deviceLogs.length < 50) {
-            // FIXED: Removed the redundant hardcoded timeZone parameter to stop the +5:30 double-addition error
             const timeFormatted = new Date(log.created_at).toLocaleTimeString('en-IN', {
               hour: '2-digit',
               minute: '2-digit',
@@ -143,6 +145,14 @@ export async function onRequest(context) {
             <h3>G Data</h3>
             <div class="count" style="font-size: 28px; color: #ef4444;">${gDataTotal}</div>
         </div>
+    </div>
+
+    <div style="display: flex; gap: 15px; margin-bottom: 15px;">
+        <div class="card" style="flex: 1; margin-bottom: 0; cursor: default;">
+            <h3>Img Data</h3>
+            <div class="count" style="font-size: 28px; color: #10b981;">${imgDataTotal}</div>
+        </div>
+        <div style="flex: 1;"></div>
     </div>
 
     <div class="card" onclick="toggle('todayGraph')">
