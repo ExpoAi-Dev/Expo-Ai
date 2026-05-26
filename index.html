@@ -518,6 +518,12 @@
 
     <canvas id="audioVisualizer" width="300" height="40" style="display:none; margin: 0 auto 10px auto; width: 100%; max-width: 300px;"></canvas>
 
+    <div id="voiceToTypeContainer" style="display: none; justify-content: flex-end; margin-bottom: 8px;">
+      <button id="voiceToTypeBtn" onclick="processVoiceToType()" style="background: #10b981; color: white; border: none; border-radius: 12px; padding: 8px 15px; font-size: 13px; font-weight: bold; cursor: pointer; transition: 0.2s;">
+        ✨ Voice to Type
+      </button>
+    </div>
+
     <div class="input-area">
       <textarea id="input" rows="1" placeholder="Ask anything..." oninput="autoExpand(this)"></textarea>
       <button class="send-btn" id="sendBtn" onclick="askAI()">Send</button>
@@ -646,11 +652,13 @@ function clearAttachment() {
   document.getElementById("fileInput").value = "";
 }
 
-// NEW: Whisper API Voice Recording & Audio Visualizer setup
+// NEW: Whisper API Voice Recording & Logic state
 let mediaRecorder;
 let audioChunks = [];
 let audioCtx, analyser, dataArray;
 let visualizerAnimationId;
+let cancelTranscription = false; // Tells the recorder if we should ignore the audio or type it
+
 const visualizerCanvas = document.getElementById("audioVisualizer");
 const canvasCtx = visualizerCanvas.getContext("2d");
 
@@ -658,11 +666,15 @@ async function toggleVoice() {
   if (isGenerating) return;
 
   const micBtn = document.getElementById("micBtn");
+  const voiceToTypeContainer = document.getElementById("voiceToTypeContainer");
 
+  // IF MIC BUTTON CLICKED WHILE RECORDING = CANCEL (Do Not Type)
   if (mediaRecorder && mediaRecorder.state === "recording") {
+    cancelTranscription = true; // Tell the system to cancel
     mediaRecorder.stop();
     micBtn.classList.remove("listening");
     visualizerCanvas.style.display = "none";
+    voiceToTypeContainer.style.display = "none";
     if (audioCtx) {
       audioCtx.close();
       audioCtx = null;
@@ -671,6 +683,8 @@ async function toggleVoice() {
     return;
   }
 
+  // START RECORDING
+  cancelTranscription = false;
   try {
     const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
     
@@ -682,7 +696,9 @@ async function toggleVoice() {
     analyser.fftSize = 128;
     dataArray = new Uint8Array(analyser.frequencyBinCount);
     
+    // Show UI Elements
     visualizerCanvas.style.display = "block";
+    voiceToTypeContainer.style.display = "flex"; // Show the new "Voice to Type" button
     micBtn.classList.add("listening");
     drawVisualizer();
 
@@ -697,6 +713,10 @@ async function toggleVoice() {
     mediaRecorder.onstop = async () => {
       stream.getTracks().forEach(track => track.stop());
       
+      // If the user cancelled by clicking the Mic button, stop completely right here.
+      if (cancelTranscription) return; 
+
+      // Otherwise, process and send to Whisper
       const audioBlob = new Blob(audioChunks, { type: 'audio/webm' });
       const input = document.getElementById("input");
       const originalPlaceholder = input.placeholder;
@@ -734,6 +754,25 @@ async function toggleVoice() {
 
   } catch (err) {
     alert("Could not access microphone.");
+  }
+}
+
+// NEW FUNCTION: TRIGGERED BY THE "✨ VOICE TO TYPE" BUTTON
+function processVoiceToType() {
+  if (mediaRecorder && mediaRecorder.state === "recording") {
+    cancelTranscription = false; // Confirms we WANT to type the words
+    mediaRecorder.stop();
+    
+    // Hide recording UI
+    document.getElementById("micBtn").classList.remove("listening");
+    document.getElementById("audioVisualizer").style.display = "none";
+    document.getElementById("voiceToTypeContainer").style.display = "none";
+    
+    if (audioCtx) {
+      audioCtx.close();
+      audioCtx = null;
+    }
+    cancelAnimationFrame(visualizerAnimationId);
   }
 }
 
