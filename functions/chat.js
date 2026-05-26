@@ -146,8 +146,11 @@ export async function onRequest(context) {
         deviceName = rawDevice.includes('Mobile') ? "Android Phone" : "Android Tablet";
       }
 
-      // Attach the discreet provider tag to the device string
-      const providerTag = isGroq ? "G Data" : "Gem Data";
+      // Attach the discreet provider tag to the device string depending on the request type
+      let providerTag = "Gem Data";
+      if (isGroq) providerTag = "G Data";
+      if (isImageGen) providerTag = "Img Data";
+      
       const finalDeviceName = `${deviceName} | ${providerTag}`;
 
       if (env.SUPABASE_URL && env.SUPABASE_KEY) {
