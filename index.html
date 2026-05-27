@@ -15,6 +15,8 @@
   
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   
+  <script src="https://accounts.google.com/gsi/client" async defer></script>
+  
   <script type="application/ld+json">
   {
     "@context": "https://schema.org",
@@ -67,6 +69,13 @@
     * { 
       box-sizing: border-box;
       -webkit-tap-highlight-color: transparent; 
+    }
+
+    /* Google Login Overlay */
+    #loginOverlay {
+      position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+      background: var(--bg-main); z-index: 9999;
+      display: none; flex-direction: column; align-items: center; justify-content: center;
     }
 
     .sidebar {
@@ -193,6 +202,7 @@
       cursor: pointer; 
       font-size: 14px;
       user-select: none;
+      overflow: hidden;
     }
     
     .account-panel { 
@@ -377,6 +387,25 @@
 
 <body class="dark-theme"> 
 
+<div id="loginOverlay">
+  <h2 style="color: var(--text-color); margin-bottom: 20px;">Welcome to Expoloom AI</h2>
+  <div id="g_id_onload"
+       data-client_id="410619258030-6oht0c2kjpqeqbk7gd2np0mdpst9sjmi.apps.googleusercontent.com" 
+       data-context="signin"
+       data-ux_mode="popup"
+       data-callback="handleCredentialResponse"
+       data-auto_prompt="false">
+  </div>
+  <div class="g_id_signin"
+       data-type="standard"
+       data-shape="rectangular"
+       data-theme="outline"
+       data-text="signin_with"
+       data-size="large"
+       data-logo_alignment="left">
+  </div>
+</div>
+
 <div id="sheetOverlay" onclick="closeModes()"></div>
 <div id="modesSheet" class="modes-sheet">
   <div class="sheet-handle-area" id="sheetHandle">
@@ -474,13 +503,13 @@
 <div id="sidebar" class="sidebar">
   <div class="sidebar-top-row">
     <div class="sidebar-header"><b>Expoloom AI</b></div>
-    <div class="profile-btn" onclick="toggleAccount(event)">👤</div>
+    <div class="profile-btn" id="userProfileBtn" onclick="toggleAccount(event)">👤</div>
     
     <div id="accountPanel" class="account-panel" onclick="event.stopPropagation()">
-      <p style="margin-top:0; color: var(--text-color);">👤 <b>Account</b></p>
+      <p style="margin-top:0; color: var(--text-color);">👤 <b id="accountName">Account</b></p>
       <div class="divider" style="background:gray; opacity:0.2;"></div>
-      <p style="font-size:13px; opacity:0.8; margin-bottom:5px; color: var(--text-color);">User ID: exp_012</p>
-      <p style="font-size:12px; opacity:0.6; color: var(--text-color);">user@expoloom.com</p>
+      <p id="accountEmail" style="font-size:13px; opacity:0.8; margin-bottom:15px; color: var(--text-color);"></p>
+      <button onclick="signOutGoogle()" style="width: 100%; padding: 8px; background: #ef4444; color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: bold;">Sign Out</button>
     </div>
   </div>
   <div class="divider"></div>
@@ -568,6 +597,50 @@
 </div>
 
 <script>
+// --- NEW GOOGLE AUTHENTICATION LOGIC ---
+function decodeJwtResponse(token) {
+    let base64Url = token.split('.')[1];
+    let base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
+    let jsonPayload = decodeURIComponent(atob(base64).split('').map(function(c) {
+        return '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2);
+    }).join(''));
+    return JSON.parse(jsonPayload);
+}
+
+function handleCredentialResponse(response) {
+    const responsePayload = decodeJwtResponse(response.credential);
+    localStorage.setItem("googleUser", JSON.stringify(responsePayload));
+    applyUserData(responsePayload);
+}
+
+function applyUserData(user) {
+    document.getElementById("loginOverlay").style.display = "none";
+    document.getElementById("accountName").innerText = user.name;
+    document.getElementById("accountEmail").innerText = user.email;
+    
+    const profileBtn = document.getElementById("userProfileBtn");
+    if (user.picture) {
+        profileBtn.innerHTML = `<img src="${user.picture}" style="width: 100%; height: 100%; border-radius: 50%; object-fit: cover;">`;
+    }
+}
+
+function signOutGoogle() {
+    localStorage.removeItem("googleUser");
+    document.getElementById("loginOverlay").style.display = "flex";
+    document.getElementById("accountPanel").style.display = "none";
+    document.getElementById("userProfileBtn").innerHTML = "👤";
+}
+
+window.onload = () => {
+    const storedUser = localStorage.getItem("googleUser");
+    if (storedUser) {
+        applyUserData(JSON.parse(storedUser));
+    } else {
+        document.getElementById("loginOverlay").style.display = "flex";
+    }
+};
+// ----------------------------------------
+
 let chats = JSON.parse(localStorage.getItem("chats")) || {};
 let currentChat = localStorage.getItem("lastChatId") || null;
 let currentMode = "ultrafast"; 
@@ -652,12 +725,11 @@ function clearAttachment() {
   document.getElementById("fileInput").value = "";
 }
 
-// NEW: Whisper API Voice Recording & Logic state
 let mediaRecorder;
 let audioChunks = [];
 let audioCtx, analyser, dataArray;
 let visualizerAnimationId;
-let cancelTranscription = false; // Tells the recorder if we should ignore the audio or type it
+let cancelTranscription = false; 
 
 const visualizerCanvas = document.getElementById("audioVisualizer");
 const canvasCtx = visualizerCanvas.getContext("2d");
@@ -668,9 +740,8 @@ async function toggleVoice() {
   const micBtn = document.getElementById("micBtn");
   const voiceToTypeContainer = document.getElementById("voiceToTypeContainer");
 
-  // IF MIC BUTTON CLICKED WHILE RECORDING = CANCEL (Do Not Type)
   if (mediaRecorder && mediaRecorder.state === "recording") {
-    cancelTranscription = true; // Tell the system to cancel
+    cancelTranscription = true; 
     mediaRecorder.stop();
     micBtn.classList.remove("listening");
     visualizerCanvas.style.display = "none";
@@ -683,12 +754,10 @@ async function toggleVoice() {
     return;
   }
 
-  // START RECORDING
   cancelTranscription = false;
   try {
     const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
     
-    // Setup Audio Visualizer
     audioCtx = new (window.AudioContext || window.webkitAudioContext)();
     analyser = audioCtx.createAnalyser();
     const source = audioCtx.createMediaStreamSource(stream);
@@ -696,13 +765,11 @@ async function toggleVoice() {
     analyser.fftSize = 128;
     dataArray = new Uint8Array(analyser.frequencyBinCount);
     
-    // Show UI Elements
     visualizerCanvas.style.display = "block";
-    voiceToTypeContainer.style.display = "flex"; // Show the new "Voice to Type" button
+    voiceToTypeContainer.style.display = "flex"; 
     micBtn.classList.add("listening");
     drawVisualizer();
 
-    // Setup Audio Recording for Whisper
     mediaRecorder = new MediaRecorder(stream);
     audioChunks = [];
 
@@ -713,10 +780,8 @@ async function toggleVoice() {
     mediaRecorder.onstop = async () => {
       stream.getTracks().forEach(track => track.stop());
       
-      // If the user cancelled by clicking the Mic button, stop completely right here.
       if (cancelTranscription) return; 
 
-      // Otherwise, process and send to Whisper
       const audioBlob = new Blob(audioChunks, { type: 'audio/webm' });
       const input = document.getElementById("input");
       const originalPlaceholder = input.placeholder;
@@ -757,13 +822,11 @@ async function toggleVoice() {
   }
 }
 
-// NEW FUNCTION: TRIGGERED BY THE "✨ VOICE TO TYPE" BUTTON
 function processVoiceToType() {
   if (mediaRecorder && mediaRecorder.state === "recording") {
-    cancelTranscription = false; // Confirms we WANT to type the words
+    cancelTranscription = false; 
     mediaRecorder.stop();
     
-    // Hide recording UI
     document.getElementById("micBtn").classList.remove("listening");
     document.getElementById("audioVisualizer").style.display = "none";
     document.getElementById("voiceToTypeContainer").style.display = "none";
@@ -789,11 +852,10 @@ function drawVisualizer() {
 
   for(let i = 0; i < analyser.frequencyBinCount; i++) {
     barHeight = (dataArray[i] / 255) * visualizerCanvas.height;
-    if (barHeight < 2) barHeight = 2; // Minimum height for the dot aesthetic
+    if (barHeight < 2) barHeight = 2; 
 
-    canvasCtx.fillStyle = '#2563eb'; // Expoloom Blue
+    canvasCtx.fillStyle = '#2563eb'; 
     
-    // Draw centered vertical line/dot
     const y = (visualizerCanvas.height - barHeight) / 2;
     
     canvasCtx.beginPath();
