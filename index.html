@@ -607,10 +607,38 @@ function decodeJwtResponse(token) {
     return JSON.parse(jsonPayload);
 }
 
-function handleCredentialResponse(response) {
+// UPDATE 1: Made this function async to handle the Supabase network request
+async function handleCredentialResponse(response) {
     const responsePayload = decodeJwtResponse(response.credential);
     localStorage.setItem("googleUser", JSON.stringify(responsePayload));
     applyUserData(responsePayload);
+
+    // UPDATE 2: Send this token directly to Supabase to register the user
+    try {
+        // !!! YOU MUST FILL IN THESE TWO VARIABLES !!!
+        const supabaseUrl = "https://wcrtftqldlqvybwtlvim.supabase.co"; // e.g., https://xyz.supabase.co
+        const supabaseAnonKey = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6IndjcnRmdHFsZGxxdnlid3RsdmltIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzg5Nzk1MzIsImV4cCI6MjA5NDU1NTUzMn0.wChKXrrCIuNRxfs5o-mOx8cIHusTzAJhXSdRzqSTVTk"; // Your public anon key
+
+        const supabaseSyncResponse = await fetch(`${supabaseUrl}/auth/v1/token?grant_type=id_token`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'apikey': supabaseAnonKey
+            },
+            body: JSON.stringify({
+                provider: 'google',
+                id_token: response.credential
+            })
+        });
+
+        if (!supabaseSyncResponse.ok) {
+            console.error("Failed to sync with Supabase:", await supabaseSyncResponse.text());
+        } else {
+            console.log("Successfully saved user to Supabase dashboard!");
+        }
+    } catch (err) {
+        console.error("Supabase link sync error:", err);
+    }
 }
 
 function applyUserData(user) {
