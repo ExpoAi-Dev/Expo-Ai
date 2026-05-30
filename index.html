@@ -652,6 +652,23 @@ function applyUserData(user) {
     if (user.picture) {
         profileBtn.innerHTML = `<img src="${user.picture}" style="width: 100%; height: 100%; border-radius: 50%; object-fit: cover;">`;
     }
+
+    // Set the user email globally to isolate their specific chats
+    currentUserEmail = user.email;
+    
+    // Load their isolated local storage data
+    chats = JSON.parse(localStorage.getItem("chats_" + currentUserEmail)) || {};
+    currentChat = localStorage.getItem("lastChatId_" + currentUserEmail) || null;
+    
+    if (Object.keys(chats).length === 0) {
+        createNewChat();
+    } else {
+        renderChats();
+        renderMessages();
+    }
+
+    // Attempt to pull any missing chats from the Appwrite cloud
+    syncChatsFromAppwrite();
 }
 
 function signOutGoogle() {
@@ -659,6 +676,13 @@ function signOutGoogle() {
     document.getElementById("loginOverlay").style.display = "flex";
     document.getElementById("accountPanel").style.display = "none";
     document.getElementById("userProfileBtn").innerHTML = "👤";
+
+    // Clear the current active memory state securely so the next user sees a blank slate
+    currentUserEmail = null;
+    chats = {};
+    currentChat = null;
+    renderChats();
+    renderMessages();
 }
 
 window.onload = () => {
@@ -684,8 +708,10 @@ const client = new Appwrite.Client()
 
 const databases = new Appwrite.Databases(client);
 
-// Helper function to save conversation history to Appwrite
+// Helper function to save conversation history to Appwrite attached to the user
 async function saveChatToAppwrite(chatId, chatData) {
+  if(!currentUserEmail) return;
+
   try {
     await databases.createDocument(
       APPWRITE_DATABASE_ID,
@@ -694,12 +720,12 @@ async function saveChatToAppwrite(chatId, chatData) {
       {
         chatName: chatData.name || "New Chat",
         messages: JSON.stringify(chatData.messages), 
-        updatedAt: new Date().toISOString()
+        updatedAt: new Date().toISOString(),
+        userEmail: currentUserEmail // Bind this chat to the logged in user
       }
     );
     console.log("Chat history securely backed up to Appwrite!");
   } catch (err) {
-    // If document already exists, update it instead
     if (err.code === 409 || err.type === 'document_already_exists') {
       try {
         await databases.updateDocument(
@@ -709,7 +735,8 @@ async function saveChatToAppwrite(chatId, chatData) {
           {
             chatName: chatData.name || "New Chat",
             messages: JSON.stringify(chatData.messages),
-            updatedAt: new Date().toISOString()
+            updatedAt: new Date().toISOString(),
+            userEmail: currentUserEmail 
           }
         );
         console.log("Chat history updated in Appwrite!");
@@ -722,8 +749,48 @@ async function saveChatToAppwrite(chatId, chatData) {
   }
 }
 
-let chats = JSON.parse(localStorage.getItem("chats")) || {};
-let currentChat = localStorage.getItem("lastChatId") || null;
+// Function to fetch cloud chats upon successful login
+async function syncChatsFromAppwrite() {
+  if(!currentUserEmail) return;
+  try {
+    const response = await databases.listDocuments(
+        APPWRITE_DATABASE_ID,
+        APPWRITE_COLLECTION_ID,
+        [Appwrite.Query.equal("userEmail", currentUserEmail)]
+    );
+    
+    if (response.documents && response.documents.length > 0) {
+        let cloudChats = {};
+        response.documents.forEach(doc => {
+            cloudChats[doc.$id] = {
+                name: doc.chatName,
+                messages: JSON.parse(doc.messages),
+                timestamp: new Date(doc.updatedAt).getTime(),
+                pinned: chats[doc.$id] ? chats[doc.$id].pinned : false 
+            };
+        });
+        
+        // Merge the cloud data with local memory
+        chats = { ...chats, ...cloudChats };
+        
+        // If there is no current chat active, default to a fetched one
+        if (!currentChat && Object.keys(chats).length > 0) {
+            currentChat = Object.keys(chats)[0];
+        }
+        
+        save(); 
+        renderChats();
+        renderMessages();
+    }
+  } catch (err) {
+    console.warn("Cloud sync skipped. Remember to add a 'userEmail' string attribute and Index in your Appwrite Dashboard.", err.message);
+  }
+}
+
+// Isolated memory initialization 
+let chats = {};
+let currentChat = null;
+let currentUserEmail = null;
 let currentMode = "ultrafast"; 
 let activeSpecial = null;
 let pendingFile = null;
@@ -947,7 +1014,11 @@ function drawVisualizer() {
   }
 }
 
-function save() { localStorage.setItem("chats", JSON.stringify(chats)); localStorage.setItem("lastChatId", currentChat); }
+function save() { 
+  if(!currentUserEmail) return;
+  localStorage.setItem("chats_" + currentUserEmail, JSON.stringify(chats)); 
+  localStorage.setItem("lastChatId_" + currentUserEmail, currentChat); 
+}
 function autoExpand(t) { t.style.height = 'auto'; t.style.height = t.scrollHeight + 'px'; }
 
 function toggleMenu() {
@@ -1352,7 +1423,6 @@ window.onclick = (e) => {
   }
 };
 
-if(!currentChat) createNewChat(); else { renderChats(); renderMessages(); }
 </script>
 </body>
 </html>
