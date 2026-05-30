@@ -383,6 +383,8 @@
       .sidebar.closed { transform: translateX(-100%); margin-right: 0; }
     }
   </style>
+  
+  <script src="https://cdn.jsdelivr.net/npm/appwrite@14.0.1"></script>
 </head>
 
 <body class="dark-theme"> 
@@ -668,6 +670,57 @@ window.onload = () => {
     }
 };
 // ----------------------------------------
+
+// --- APPWRITE CONFIGURATION ---
+const APPWRITE_ENDPOINT = "https://fra.cloud.appwrite.io/v1";
+const APPWRITE_PROJECT_ID = "6a19de21000db454e694";
+const APPWRITE_DATABASE_ID = "6a19df920036e0ebcba2"; 
+const APPWRITE_COLLECTION_ID = "conversations";
+
+// Initialize the Appwrite Client
+const client = new Appwrite.Client()
+    .setEndpoint(APPWRITE_ENDPOINT)
+    .setProject(APPWRITE_PROJECT_ID);
+
+const databases = new Appwrite.Databases(client);
+
+// Helper function to save conversation history to Appwrite
+async function saveChatToAppwrite(chatId, chatData) {
+  try {
+    await databases.createDocument(
+      APPWRITE_DATABASE_ID,
+      APPWRITE_COLLECTION_ID,
+      chatId, 
+      {
+        chatName: chatData.name || "New Chat",
+        messages: JSON.stringify(chatData.messages), 
+        updatedAt: new Date().toISOString()
+      }
+    );
+    console.log("Chat history securely backed up to Appwrite!");
+  } catch (err) {
+    // If document already exists, update it instead
+    if (err.code === 409 || err.type === 'document_already_exists') {
+      try {
+        await databases.updateDocument(
+          APPWRITE_DATABASE_ID,
+          APPWRITE_COLLECTION_ID,
+          chatId,
+          {
+            chatName: chatData.name || "New Chat",
+            messages: JSON.stringify(chatData.messages),
+            updatedAt: new Date().toISOString()
+          }
+        );
+        console.log("Chat history updated in Appwrite!");
+      } catch (updateErr) {
+        console.error("Failed to update Appwrite document:", updateErr);
+      }
+    } else {
+      console.error("Failed to save to Appwrite:", err);
+    }
+  }
+}
 
 let chats = JSON.parse(localStorage.getItem("chats")) || {};
 let currentChat = localStorage.getItem("lastChatId") || null;
@@ -1276,6 +1329,9 @@ async function askAI() {
     
     chats[currentChat].timestamp = Date.now();
     save(); renderMessages(); renderChats();
+    
+    // 👉 NEW: Send the updated chat object to Appwrite immediately after rendering
+    saveChatToAppwrite(currentChat, chats[currentChat]);
   }
 }
 
