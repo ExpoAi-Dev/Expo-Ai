@@ -33,6 +33,11 @@
       {
         "@type": "WebPage",
         "name": "AI Image Generation",
+        "url": "https://expoloomai.pages.dev/#image-generation"
+      },
+      {
+        "@type": "WebPage",
+        "name": "Deep Thinking AI",
         "url": "https://expoloomai.pages.dev/#deep-thinking"
       }
     ]
@@ -703,6 +708,12 @@ const client = new Appwrite.Client()
 
 const databases = new Appwrite.Databases(client);
 
+// 👉 ADDED THIS TO FIX THE 'FAILED TO FETCH | CODE: 0' NETWORK BLOCK:
+const account = new Appwrite.Account(client);
+account.createAnonymousSession()
+  .then(() => console.log("Session initialized successfully!"))
+  .catch(err => console.log("Session already active or skipped:", err.message));
+
 // Helper function to save conversation history to Appwrite attached to the user
 async function saveChatToAppwrite(chatId, chatData) {
   if(!currentUserEmail) return;
@@ -740,7 +751,6 @@ async function saveChatToAppwrite(chatId, chatData) {
       }
     } else {
       console.error("Failed to save to Appwrite:", err);
-      alert("Appwrite Sync Error: " + err.message + " | Code: " + err.code);
     }
   }
 }
