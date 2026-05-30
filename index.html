@@ -751,6 +751,8 @@ async function saveChatToAppwrite(chatId, chatData) {
       }
     } else {
       console.error("Failed to save to Appwrite:", err);
+      // 👉 FIXED: Put the alert back so if CORS blocks it, you'll see why immediately!
+      alert("Appwrite Sync Error: " + err.message + " | Code: " + err.code);
     }
   }
 }
@@ -1167,14 +1169,20 @@ function renderChats() {
   });
 }
 
-function togglePin(id) { chats[id].pinned = !chats[id].pinned; save(); renderChats(); }
+// 👉 FIXED: Triggers Appwrite Sync for Pinning
+function togglePin(id) { 
+  chats[id].pinned = !chats[id].pinned; 
+  save(); 
+  renderChats(); 
+  saveChatToAppwrite(id, chats[id]); 
+}
 
+// 👉 FIXED: Triggers Appwrite Sync for Renaming
 function renameChat(id) {
   chatToRename = id;
   const input = document.getElementById("renameChatInput");
   input.value = chats[id].name;
   document.getElementById("renameConfirmOverlay").style.display = "flex";
-  
   setTimeout(() => input.focus(), 100);
 }
 
@@ -1190,6 +1198,7 @@ function confirmRenameAction() {
       chats[chatToRename].name = newName.trim(); 
       save(); 
       renderChats(); 
+      saveChatToAppwrite(chatToRename, chats[chatToRename]);
     }
     closeRenameModal();
   }
@@ -1216,14 +1225,23 @@ function closeDeleteModal() {
   document.getElementById("deleteConfirmOverlay").style.display = "none";
 }
 
-function confirmDeleteAction() {
+// 👉 FIXED: Now correctly deletes the document from Appwrite servers as well
+async function confirmDeleteAction() {
   if (chatToDelete) {
+    const targetId = chatToDelete;
     delete chats[chatToDelete];
     currentChat = Object.keys(chats)[0] || null;
     save();
     renderChats();
     renderMessages();
     closeDeleteModal();
+    if(currentUserEmail) {
+      try {
+        await databases.deleteDocument(APPWRITE_DATABASE_ID, APPWRITE_COLLECTION_ID, targetId);
+      } catch(e) { 
+        console.error("Failed to delete from Appwrite:", e); 
+      }
+    }
   }
 }
 
@@ -1407,7 +1425,6 @@ async function askAI() {
     chats[currentChat].timestamp = Date.now();
     save(); renderMessages(); renderChats();
     
-    // 👉 NEW: Send the updated chat object to Appwrite immediately after rendering
     saveChatToAppwrite(currentChat, chats[currentChat]);
   }
 }
