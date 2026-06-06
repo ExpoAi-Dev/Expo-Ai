@@ -610,17 +610,14 @@ function decodeJwtResponse(token) {
     return JSON.parse(jsonPayload);
 }
 
-// UPDATE 1: Made this function async to handle the Supabase network request
 async function handleCredentialResponse(response) {
     const responsePayload = decodeJwtResponse(response.credential);
     localStorage.setItem("googleUser", JSON.stringify(responsePayload));
     applyUserData(responsePayload);
 
-    // UPDATE 2: Send this token directly to Supabase to register the user
     try {
-        // !!! YOU MUST FILL IN THESE TWO VARIABLES !!!
-        const supabaseUrl = "https://wcrtftqldlqvybwtlvim.supabase.co"; // e.g., https://xyz.supabase.co
-        const supabaseAnonKey = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6IndjcnRmdHFsZGxxdnlid3RsdmltIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzg5Nzk1MzIsImV4cCI6MjA5NDU1NTUzMn0.wChKXrrCIuNRxfs5o-mOx8cIHusTzAJhXSdRzqSTVTk"; // Your public anon key
+        const supabaseUrl = "https://wcrtftqldlqvybwtlvim.supabase.co"; 
+        const supabaseAnonKey = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6IndjcnRmdHFsZGxxdnlid3RsdmltIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzg5Nzk1MzIsImV4cCI6MjA5NDU1NTUzMn0.wChKXrrCIuNRxfs5o-mOx8cIHusTzAJhXSdRzqSTVTk";
 
         const supabaseSyncResponse = await fetch(`${supabaseUrl}/auth/v1/token?grant_type=id_token`, {
             method: 'POST',
@@ -654,21 +651,30 @@ function applyUserData(user) {
         profileBtn.innerHTML = `<img src="${user.picture}" style="width: 100%; height: 100%; border-radius: 50%; object-fit: cover;">`;
     }
 
-    // Set the user email globally to isolate their specific chats
     currentUserEmail = user.email;
-    
-    // Load their isolated local storage data
     chats = JSON.parse(localStorage.getItem("chats_" + currentUserEmail)) || {};
+    
+    // CLEANUP: Immediately wipe out any old legacy chats that have 0 messages
+    for (let id in chats) {
+        if (!chats[id].messages || chats[id].messages.length === 0) {
+            delete chats[id];
+        }
+    }
+
     currentChat = localStorage.getItem("lastChatId_" + currentUserEmail) || null;
+    if (currentChat && !chats[currentChat]) currentChat = null; // Safety check
     
     if (Object.keys(chats).length === 0) {
-        createNewChat();
+        createNewChat(); // Start completely fresh
     } else {
+        if (!currentChat) {
+             const keys = Object.keys(chats).sort((a,b) => chats[b].timestamp - chats[a].timestamp);
+             currentChat = keys[0];
+        }
         renderChats();
         renderMessages();
     }
 
-    // Attempt to pull any missing chats from the Appwrite cloud
     syncChatsFromAppwrite();
 }
 
@@ -678,7 +684,6 @@ function signOutGoogle() {
     document.getElementById("accountPanel").style.display = "none";
     document.getElementById("userProfileBtn").innerHTML = "👤";
 
-    // Clear the current active memory state securely so the next user sees a blank slate
     currentUserEmail = null;
     chats = {};
     currentChat = null;
@@ -694,7 +699,6 @@ window.onload = () => {
         document.getElementById("loginOverlay").style.display = "flex";
     }
 };
-// ----------------------------------------
 
 // --- APPWRITE CONFIGURATION ---
 const APPWRITE_ENDPOINT = "https://fra.cloud.appwrite.io/v1";
@@ -702,20 +706,17 @@ const APPWRITE_PROJECT_ID = "6a19de21000db454e694";
 const APPWRITE_DATABASE_ID = "6a19df920036e0ebcba2"; 
 const APPWRITE_COLLECTION_ID = "conversations";
 
-// Initialize the Appwrite Client
 const client = new Appwrite.Client()
     .setEndpoint(APPWRITE_ENDPOINT)
     .setProject(APPWRITE_PROJECT_ID);
 
 const databases = new Appwrite.Databases(client);
-
-// 👉 ADDED THIS TO FIX THE 'FAILED TO FETCH | CODE: 0' NETWORK BLOCK:
 const account = new Appwrite.Account(client);
+
 account.createAnonymousSession()
   .then(() => console.log("Session initialized successfully!"))
   .catch(err => console.log("Session already active or skipped:", err.message));
 
-// Helper function to save conversation history to Appwrite attached to the user
 async function saveChatToAppwrite(chatId, chatData) {
   if(!currentUserEmail) return;
 
@@ -728,7 +729,7 @@ async function saveChatToAppwrite(chatId, chatData) {
         chatName: chatData.name || "New Chat",
         messages: JSON.stringify(chatData.messages), 
         updatedAt: new Date().toISOString(),
-        userEmail: currentUserEmail // Bind this chat to the logged in user
+        userEmail: currentUserEmail
       }
     );
     console.log("Chat history securely backed up to Appwrite!");
@@ -752,13 +753,10 @@ async function saveChatToAppwrite(chatId, chatData) {
       }
     } else {
       console.error("Failed to save to Appwrite:", err);
-      // 👉 FIXED: Put the alert back so if CORS blocks it, you'll see why immediately!
-      alert("Appwrite Sync Error: " + err.message + " | Code: " + err.code);
     }
   }
 }
 
-// Function to fetch cloud chats upon successful login
 async function syncChatsFromAppwrite() {
   if(!currentUserEmail) return;
   try {
@@ -779,12 +777,10 @@ async function syncChatsFromAppwrite() {
             };
         });
         
-        // Merge the cloud data with local memory
         chats = { ...chats, ...cloudChats };
         
-        // If there is no current chat active, default to a fetched one
         if (!currentChat && Object.keys(chats).length > 0) {
-            currentChat = Object.keys(chats)[0];
+            currentChat = Object.keys(chats).sort((a,b) => chats[b].timestamp - chats[a].timestamp)[0];
         }
         
         save(); 
@@ -798,7 +794,7 @@ async function syncChatsFromAppwrite() {
 
 // Isolated memory initialization 
 let chats = {};
-let currentChat = null;
+let currentChat = null; // Represents no active chat selected or a "Blank Slate" 
 let currentUserEmail = null;
 let currentMode = "ultrafast"; 
 let activeSpecial = null;
@@ -1025,9 +1021,18 @@ function drawVisualizer() {
 
 function save() { 
   if(!currentUserEmail) return;
+  
+  // Cleanup empty chats gracefully so they never persist in memory
+  for (let id in chats) {
+    if (chats[id].messages.length === 0 && id !== currentChat) {
+        delete chats[id];
+    }
+  }
+  
   localStorage.setItem("chats_" + currentUserEmail, JSON.stringify(chats)); 
-  localStorage.setItem("lastChatId_" + currentUserEmail, currentChat); 
+  localStorage.setItem("lastChatId_" + currentUserEmail, currentChat || ""); 
 }
+
 function autoExpand(t) { t.style.height = 'auto'; t.style.height = t.scrollHeight + 'px'; }
 
 function toggleMenu() {
@@ -1081,12 +1086,7 @@ function renderChats() {
   const list = document.getElementById("chatList");
   list.innerHTML = "";
   
-  const buckets = {
-    today: [],
-    yesterday: [],
-    weekly: {},
-    monthly: {}
-  };
+  const buckets = { today: [], yesterday: [], weekly: {}, monthly: {} };
 
   const now = new Date();
   const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
@@ -1170,7 +1170,6 @@ function renderChats() {
   });
 }
 
-// 👉 FIXED: Triggers Appwrite Sync for Pinning
 function togglePin(id) { 
   chats[id].pinned = !chats[id].pinned; 
   save(); 
@@ -1178,7 +1177,6 @@ function togglePin(id) {
   saveChatToAppwrite(id, chats[id]); 
 }
 
-// 👉 FIXED: Triggers Appwrite Sync for Renaming
 function renameChat(id) {
   chatToRename = id;
   const input = document.getElementById("renameChatInput");
@@ -1226,12 +1224,17 @@ function closeDeleteModal() {
   document.getElementById("deleteConfirmOverlay").style.display = "none";
 }
 
-// 👉 FIXED: Now correctly deletes the document from Appwrite servers as well
 async function confirmDeleteAction() {
   if (chatToDelete) {
     const targetId = chatToDelete;
     delete chats[chatToDelete];
-    currentChat = Object.keys(chats)[0] || null;
+    
+    // Switch to next chat dynamically, or null if deleted the last one
+    if (currentChat === targetId) {
+      const remainingKeys = Object.keys(chats).sort((a,b) => chats[b].timestamp - chats[a].timestamp);
+      currentChat = remainingKeys.length > 0 ? remainingKeys[0] : null;
+    }
+    
     save();
     renderChats();
     renderMessages();
@@ -1271,6 +1274,7 @@ function renderMessages() {
     </div>
   `;
 
+  // Dynamic Toggle UI elements
   if (!currentChat || !chats[currentChat] || chats[currentChat].messages.length === 0) {
     box.innerHTML = emptyStateHTML;
     if (headerActions) headerActions.style.display = "none";
@@ -1318,7 +1322,10 @@ async function askAI() {
   const mentionsImage = imageKeywords.some(word => msgText.toLowerCase().includes(word));
   
   if (mentionsImage && activeSpecial !== 'image_gen') {
-    if (!chats[currentChat]) createNewChat();
+    if (!currentChat || !chats[currentChat]) {
+        currentChat = "chat_" + Date.now();
+        chats[currentChat] = { name: "New Chat", messages: [], pinned: false, timestamp: Date.now() };
+    }
     chats[currentChat].messages.push({ role: "user", parts: [{ text: msgText }] });
     chats[currentChat].messages.push({ 
       role: "model", 
@@ -1333,8 +1340,15 @@ async function askAI() {
   let combined = msgText;
   if (pendingFile) combined = `📎 Attached: ${pendingFile.name}\n${msgText}`;
 
-  if (!chats[currentChat]) createNewChat();
+  // NEW DYNAMIC CREATE - Sets ID ONLY when sending message
+  if (!currentChat || !chats[currentChat]) {
+      currentChat = "chat_" + Date.now();
+      chats[currentChat] = { name: "New Chat", messages: [], pinned: false, timestamp: Date.now() };
+  }
+
   chats[currentChat].messages.push({ role: "user", parts: [{ text: combined }] });
+  
+  renderChats(); // Updates sidebar instantly
   renderMessages();
   input.value = ""; input.style.height = "auto";
   clearAttachment();
@@ -1434,11 +1448,12 @@ async function askAI() {
   }
 }
 
+// Set active variable state blank
 function createNewChat() { 
-  const id = "chat_" + Date.now(); 
-  chats[id] = { name: "New Chat", messages: [], pinned: false, timestamp: Date.now() }; 
-  currentChat = id; 
-  save(); renderChats(); renderMessages(); 
+  currentChat = null;
+  renderChats(); 
+  renderMessages(); 
+  updateHeaderTitle();
   if(window.innerWidth < 768) sidebar.classList.remove("open");
 }
 
