@@ -527,7 +527,8 @@
   <div class="header">
     <div id="menuBtn" class="menu-btn" onclick="toggleMenu()">☰</div>
     <div id="mainHeaderTitle" style="flex-grow: 1; text-align: left; margin-left: 5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; padding-right: 10px;">Expoloom AI</div>
-    <div style="display: flex; align-items: center; gap: 8px;">
+    
+    <div id="mainHeaderActions" style="display: none; align-items: center; gap: 8px;">
       <button class="top-new-chat-btn" onclick="createNewChat()" title="New Chat">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width: 22px; height: 22px;">
           <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
@@ -1247,6 +1248,7 @@ async function confirmDeleteAction() {
 
 function renderMessages() {
   const box = document.getElementById("chat"); 
+  const headerActions = document.getElementById("mainHeaderActions");
   box.innerHTML = "";
   
   const emptyStateHTML = `
@@ -1271,8 +1273,11 @@ function renderMessages() {
 
   if (!currentChat || !chats[currentChat] || chats[currentChat].messages.length === 0) {
     box.innerHTML = emptyStateHTML;
+    if (headerActions) headerActions.style.display = "none";
     return;
   }
+
+  if (headerActions) headerActions.style.display = "flex";
 
   chats[currentChat].messages.forEach(msg => {
     const div = document.createElement("div");
