@@ -1579,7 +1579,9 @@ async function askAI() {
     sendBtn.style.backgroundColor = "var(--accent-blue)";
     input.disabled = false;
     input.placeholder = "Ask anything...";
-    input.focus(); 
+    
+    // I HAVE REMOVED THIS LINE BELOW TO STOP THE KEYBOARD POP-UP
+    // input.focus(); 
     
     chats[currentChat].timestamp = Date.now();
     save(); renderMessages(); renderChats();
