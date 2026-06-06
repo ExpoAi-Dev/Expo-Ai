@@ -502,6 +502,18 @@
   </div>
 </div>
 
+<div id="syncPromptOverlay" class="modal-overlay" onclick="denySync()" style="z-index: 3000;">
+  <div class="custom-modal-box" onclick="event.stopPropagation()">
+    <h3 style="margin-top: 0; color: var(--text-color);" id="syncTitle">Update Found</h3>
+    <p style="opacity: 0.8; font-size: 14px; color: var(--text-color);" id="syncMessage"></p>
+    <div style="font-size: 13px; color: var(--accent-blue); margin-top: 10px; font-weight: bold;" id="syncCountdown">Auto-updating in 5s...</div>
+    <div class="custom-modal-btns">
+      <button onclick="denySync()" style="border: 1px solid #64748b; background: transparent; color: var(--text-color);">No</button>
+      <button onclick="acceptSync()" style="border: none; background: var(--accent-blue); color: white;">Yes</button>
+    </div>
+  </div>
+</div>
+
 <div id="sidebar" class="sidebar">
   <div class="sidebar-top-row">
     <div class="sidebar-header"><b>Expoloom AI</b></div>
@@ -676,6 +688,7 @@ function applyUserData(user) {
     }
 
     syncChatsFromAppwrite();
+    setupRealtime();
 }
 
 function signOutGoogle() {
@@ -683,6 +696,11 @@ function signOutGoogle() {
     document.getElementById("loginOverlay").style.display = "flex";
     document.getElementById("accountPanel").style.display = "none";
     document.getElementById("userProfileBtn").innerHTML = "👤";
+
+    if (unsubscribeRealtime) {
+        unsubscribeRealtime();
+        unsubscribeRealtime = null;
+    }
 
     currentUserEmail = null;
     chats = {};
@@ -804,6 +822,12 @@ let isGenerating = false;
 let chatToDelete = null; 
 let chatToRename = null; 
 
+// --- NEW REALTIME SYNC VARIABLES ---
+let syncTimeout;
+let syncCountdownInterval;
+let pendingSyncDoc = null;
+let unsubscribeRealtime = null;
+
 const sidebar = document.getElementById("sidebar");
 let sideStartX = 0;
 sidebar.addEventListener('touchstart', e => sideStartX = e.touches[0].clientX);
@@ -819,6 +843,122 @@ function updateHeaderTitle() {
     titleEl.innerText = "Expoloom AI";
   }
 }
+
+// --- NEW REALTIME SUBSCRIPTION LOGIC ---
+function setupRealtime() {
+  if (!currentUserEmail) return;
+  if (unsubscribeRealtime) unsubscribeRealtime();
+  
+  unsubscribeRealtime = client.subscribe(
+    `databases.${APPWRITE_DATABASE_ID}.collections.${APPWRITE_COLLECTION_ID}.documents`,
+    response => {
+      if (response.events.includes(`databases.${APPWRITE_DATABASE_ID}.collections.${APPWRITE_COLLECTION_ID}.documents.*.create`) ||
+          response.events.includes(`databases.${APPWRITE_DATABASE_ID}.collections.${APPWRITE_COLLECTION_ID}.documents.*.update`)) {
+        
+        const doc = response.payload;
+        
+        // Ignore events not belonging to this user
+        if (doc.userEmail !== currentUserEmail) return;
+
+        const docId = doc.$id;
+        let isNewOrUpdated = false;
+        
+        if (!chats[docId]) {
+          isNewOrUpdated = true;
+        } else {
+          // Compare locally saved messages with the incoming Appwrite messages 
+          // to ensure this device didn't trigger the update itself
+          const localMessagesStr = JSON.stringify(chats[docId].messages);
+          const remoteMessagesStr = JSON.stringify(JSON.parse(doc.messages));
+          if (localMessagesStr !== remoteMessagesStr) {
+            isNewOrUpdated = true;
+          }
+        }
+
+        if (isNewOrUpdated && !isGenerating) {
+          triggerSyncPrompt(doc);
+        }
+      }
+    }
+  );
+}
+
+function triggerSyncPrompt(doc) {
+  pendingSyncDoc = doc;
+  const docId = doc.$id;
+  const isCurrentChat = (docId === currentChat);
+  
+  const titleEl = document.getElementById("syncTitle");
+  const msgEl = document.getElementById("syncMessage");
+  const countdownEl = document.getElementById("syncCountdown");
+  
+  if (isCurrentChat) {
+    titleEl.innerText = "New Messages";
+    msgEl.innerText = "New messages received in this conversation. Would you like to view them?";
+  } else {
+    titleEl.innerText = "Chat Updated";
+    msgEl.innerText = "A new conversation or update was found on another device. Would you like to switch and sync?";
+  }
+  
+  document.getElementById("syncPromptOverlay").style.display = "flex";
+  
+  let timeLeft = 5; // Change this to 1 if you strictly prefer an instant 1-second auto-update
+  countdownEl.innerText = `Auto-updating in ${timeLeft}s...`;
+  
+  clearInterval(syncCountdownInterval);
+  clearTimeout(syncTimeout);
+  
+  syncCountdownInterval = setInterval(() => {
+    timeLeft--;
+    if (timeLeft > 0) {
+      countdownEl.innerText = `Auto-updating in ${timeLeft}s...`;
+    } else {
+      clearInterval(syncCountdownInterval);
+    }
+  }, 1000);
+  
+  syncTimeout = setTimeout(() => {
+    acceptSync();
+  }, 5000); // Change this to 1000 if using a 1-second timer
+}
+
+function denySync() {
+  clearInterval(syncCountdownInterval);
+  clearTimeout(syncTimeout);
+  pendingSyncDoc = null;
+  document.getElementById("syncPromptOverlay").style.display = "none";
+}
+
+function acceptSync() {
+  clearInterval(syncCountdownInterval);
+  clearTimeout(syncTimeout);
+  
+  if (pendingSyncDoc) {
+    const doc = pendingSyncDoc;
+    const docId = doc.$id;
+    
+    chats[docId] = {
+      name: doc.chatName,
+      messages: JSON.parse(doc.messages),
+      timestamp: new Date(doc.updatedAt).getTime(),
+      pinned: chats[docId] ? chats[docId].pinned : false
+    };
+    
+    if (docId !== currentChat) {
+      currentChat = docId;
+    }
+    
+    save();
+    renderChats();
+    renderMessages();
+    updateHeaderTitle();
+  }
+  
+  pendingSyncDoc = null;
+  document.getElementById("syncPromptOverlay").style.display = "none";
+}
+// --- END REALTIME LOGIC ---
+
 
 function openOptions() { document.getElementById("optionsSheet").classList.add("open"); document.getElementById("optionsOverlay").style.display = "block"; }
 function closeOptions() { document.getElementById("optionsSheet").classList.remove("open"); document.getElementById("optionsOverlay").style.display = "none"; }
