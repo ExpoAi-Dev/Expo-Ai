@@ -16,7 +16,6 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   
   <script src="https://accounts.google.com/gsi/client" async defer></script>
-  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   
   <script type="application/ld+json">
   {
@@ -76,16 +75,6 @@
       position: fixed; top: 0; left: 0; width: 100%; height: 100%;
       background: var(--bg-main); z-index: 9999;
       display: none; flex-direction: column; align-items: center; justify-content: center;
-    }
-
-    .auth-box {
-      width: 100%;
-      max-width: 360px;
-      padding: 30px;
-      background: #1e293b;
-      border-radius: 16px;
-      border: 1px solid #334155;
-      box-shadow: 0 10px 30px -5px rgba(0,0,0,0.5);
     }
 
     .sidebar {
@@ -219,61 +208,29 @@
 <body class="dark-theme"> 
 
 <div id="loginOverlay">
-  <div class="auth-box">
-    <h2 style="color: #fff; text-align: center; margin-top: 0; margin-bottom: 24px; font-weight: 600;">Expoloom AI</h2>
-    
-    <div id="view-signin" style="display: block;">
-      <p style="color: #94a3b8; font-size: 14px; margin-bottom: 20px; text-align: center;">Sign in to resume your chats</p>
-      
-      <div id="g_id_onload"
-           data-client_id="410619258030-6oht0c2kjpqeqbk7gd2np0mdpst9sjmi.apps.googleusercontent.com" 
-           data-context="signin"
-           data-ux_mode="popup"
-           data-callback="handleCredentialResponse"
-           data-auto_prompt="false">
-      </div>
-      <div class="g_id_signin" data-type="standard" data-shape="rectangular" data-theme="outline" data-text="signin_with" data-size="large" data-logo_alignment="left" style="display: flex; justify-content: center; margin-bottom: 20px;"></div>
+  <h2 style="color: var(--text-color); margin-bottom: 20px;">Welcome to Expoloom AI</h2>
+  <div id="g_id_onload"
+       data-client_id="410619258030-6oht0c2kjpqeqbk7gd2np0mdpst9sjmi.apps.googleusercontent.com" 
+       data-context="signin"
+       data-ux_mode="popup"
+       data-callback="handleCredentialResponse"
+       data-auto_prompt="false">
+  </div>
+  <div class="g_id_signin"
+       data-type="standard"
+       data-shape="rectangular"
+       data-theme="outline"
+       data-text="signin_with"
+       data-size="large"
+       data-logo_alignment="left"
+       style="margin-bottom: 25px;">
+  </div>
 
-      <div style="text-align: center; margin: 20px 0; color: #475569; font-size: 13px; font-weight: 600;">OR SIGN IN WITH EMAIL</div>
-
-      <div style="display: flex; flex-direction: column; gap: 12px;">
-        <input type="email" id="loginEmail" placeholder="Email Address" style="padding: 12px; border: 1px solid #334155; border-radius: 8px; background: #0f172a; color: #fff; outline: none; font-size: 14px;">
-        <input type="password" id="loginPassword" placeholder="Password" style="padding: 12px; border: 1px solid #334155; border-radius: 8px; background: #0f172a; color: #fff; outline: none; font-size: 14px;">
-        
-        <button onclick="handleManualAuth('signin')" style="background: #3b82f6; color: white; padding: 12px; border: none; border-radius: 8px; font-weight: bold; cursor: pointer; font-size: 14px; transition: 0.2s;">
-          Sign In
-        </button>
-      </div>
-
-      <p style="text-align: center; font-size: 13px; color: #94a3b8; margin-top: 20px; margin-bottom: 0;">
-        New to Expoloom? <a href="#" onclick="toggleAuthPage('signup')" style="color: #3b82f6; text-decoration: none; font-weight: 600;">Create an account</a>
-      </p>
-    </div>
-
-    <div id="view-signup" style="display: none;">
-      <p style="color: #94a3b8; font-size: 14px; margin-bottom: 20px; text-align: center;">Create your free account instantly</p>
-      
-      <div style="display: flex; flex-direction: column; gap: 12px;">
-        <input type="text" id="registerName" placeholder="Full Name" style="padding: 12px; border: 1px solid #334155; border-radius: 8px; background: #0f172a; color: #fff; outline: none; font-size: 14px;">
-        <input type="email" id="registerEmail" placeholder="Email Address" style="padding: 12px; border: 1px solid #334155; border-radius: 8px; background: #0f172a; color: #fff; outline: none; font-size: 14px;">
-        <input type="password" id="registerPassword" placeholder="Create Password" style="padding: 12px; border: 1px solid #334155; border-radius: 8px; background: #0f172a; color: #fff; outline: none; font-size: 14px;">
-        
-        <button onclick="handleManualAuth('signup')" style="background: #10b981; color: white; padding: 12px; border: none; border-radius: 8px; font-weight: bold; cursor: pointer; font-size: 14px; transition: 0.2s;">
-          Create Account
-        </button>
-      </div>
-
-      <p style="text-align: center; font-size: 13px; color: #94a3b8; margin-top: 20px; margin-bottom: 0;">
-        Already have an account? <a href="#" onclick="toggleAuthPage('signin')" style="color: #10b981; text-decoration: none; font-weight: 600;">Sign In here</a>
-      </p>
-    </div>
-
-    <div style="font-size: 12px; color: #64748b; text-align: center; line-height: 1.5; margin-top: 25px;">
-      By continuing, you agree to our <br>
-      <a href="/policies.html" style="color: #3b82f6; text-decoration: none; font-weight: 600;">Terms of Service</a> 
-      and 
-      <a href="/policies.html" style="color: #3b82f6; text-decoration: none; font-weight: 600;">Privacy Policy</a>.
-    </div>
+  <div style="font-size: 13px; color: #64748b; text-align: center; line-height: 1.6; max-width: 280px; margin-top: 15px; font-family: Arial, sans-serif;">
+    By logging in, you agree to our <br>
+    <a href="/policies.html" style="color: #2563eb; text-decoration: none; font-weight: 600;">Terms of Service</a> 
+    and 
+    <a href="/policies.html" style="color: #2563eb; text-decoration: none; font-weight: 600;">Privacy Policy</a>.
   </div>
 </div>
 
@@ -420,77 +377,6 @@
 </div>
 
 <script>
-// --- SUPABASE CLIENT SETUP ---
-const SUPABASE_URL = "https://wcrtftqldlqvybwtlvim.supabase.co"; 
-const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6IndjcnRmdHFsZGxxdnlid3RsdmltIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzg5Nzk1MzIsImV4cCI6MjA5NDU1NTUzMn0.wChKXrrCIuNRxfs5o-mOx8cIHusTzAJhXSdRzqSTVTk";
-const supabase = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
-
-// --- DUAL-PAGE AUTH UI TOGGLE ---
-function toggleAuthPage(page) {
-  const signInView = document.getElementById('view-signin');
-  const signUpView = document.getElementById('view-signup');
-  if (page === 'signup') {
-    signInView.style.display = 'none';
-    signUpView.style.display = 'block';
-  } else {
-    signInView.style.display = 'block';
-    signUpView.style.display = 'none';
-  }
-}
-
-// --- EMAIL/PASSWORD AUTHENTICATION ---
-async function handleManualAuth(action) {
-  if (action === 'signup') {
-    const fullName = document.getElementById('registerName').value.trim();
-    const email = document.getElementById('registerEmail').value.trim();
-    const password = document.getElementById('registerPassword').value;
-
-    if (!email || !password) {
-      alert("Please specify an email address and password.");
-      return;
-    }
-
-    const { data, error } = await supabase.auth.signUp({
-      email: email,
-      password: password,
-      options: { data: { full_name: fullName || "New User" } }
-    });
-
-    if (error) {
-      alert("Signup failed: " + error.message);
-    } else {
-      alert("Account created successfully! You can now log in.");
-      toggleAuthPage('signin');
-    }
-  } else {
-    const email = document.getElementById('loginEmail').value.trim();
-    const password = document.getElementById('loginPassword').value;
-
-    if (!email || !password) {
-      alert("Please type your email and password.");
-      return;
-    }
-
-    const { data, error } = await supabase.auth.signInWithPassword({ email, password });
-    
-    if (error) {
-      alert("Login failed: " + error.message);
-    } else {
-      completeAuthSession(data.user);
-    }
-  }
-}
-
-function completeAuthSession(user) {
-  const userPayload = {
-     name: user.user_metadata?.full_name || user.email.split('@')[0],
-     email: user.email,
-     picture: user.user_metadata?.avatar_url || ''
-  };
-  localStorage.setItem("googleUser", JSON.stringify(userPayload));
-  applyUserData(userPayload);
-}
-
 // --- GOOGLE AUTHENTICATION LOGIC ---
 function decodeJwtResponse(token) {
     let base64Url = token.split('.')[1];
@@ -507,11 +393,14 @@ async function handleCredentialResponse(response) {
     applyUserData(responsePayload);
 
     try {
-        const supabaseSyncResponse = await fetch(`${SUPABASE_URL}/auth/v1/token?grant_type=id_token`, {
+        const supabaseUrl = "https://wcrtftqldlqvybwtlvim.supabase.co"; 
+        const supabaseAnonKey = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6IndjcnRmdHFsZGxxdnlid3RsdmltIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzg5Nzk1MzIsImV4cCI6MjA5NDU1NTUzMn0.wChKXrrCIuNRxfs5o-mOx8cIHusTzAJhXSdRzqSTVTk";
+
+        const supabaseSyncResponse = await fetch(`${supabaseUrl}/auth/v1/token?grant_type=id_token`, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
-                'apikey': SUPABASE_ANON_KEY
+                'apikey': supabaseAnonKey
             },
             body: JSON.stringify({
                 provider: 'google',
@@ -535,8 +424,6 @@ function applyUserData(user) {
     const profileBtn = document.getElementById("userProfileBtn");
     if (user.picture) {
         profileBtn.innerHTML = `<img src="${user.picture}" style="width: 100%; height: 100%; border-radius: 50%; object-fit: cover;">`;
-    } else {
-        profileBtn.innerHTML = "👤";
     }
 
     currentUserEmail = user.email;
@@ -571,14 +458,6 @@ function signOutGoogle() {
     document.getElementById("loginOverlay").style.display = "flex";
     document.getElementById("accountPanel").style.display = "none";
     document.getElementById("userProfileBtn").innerHTML = "👤";
-    document.getElementById("loginEmail").value = "";
-    document.getElementById("loginPassword").value = "";
-    document.getElementById("registerEmail").value = "";
-    document.getElementById("registerPassword").value = "";
-    document.getElementById("registerName").value = "";
-    toggleAuthPage('signin');
-
-    supabase.auth.signOut().catch(console.error);
 
     if (unsubscribeRealtime) {
         unsubscribeRealtime();
@@ -994,6 +873,7 @@ async function confirmDeleteAction() {
   }
 }
 
+// Helper to handle visual feedback state
 function rateMsg(msgIndex, type) {
   if (!currentChat || !chats[currentChat]) return;
   const msg = chats[currentChat].messages[msgIndex];
@@ -1046,9 +926,11 @@ function renderMessages() {
   chats[currentChat].messages.forEach((msg, index) => {
     const isUser = msg.role === "user";
     
+    // Create outer wrapper for flex positioning
     const wrapper = document.createElement("div");
     wrapper.className = "message-wrapper " + (isUser ? "user" : "bot");
 
+    // Create the message text bubble
     const msgDiv = document.createElement("div");
     msgDiv.className = "message " + (isUser ? "user" : "bot");
 
@@ -1060,6 +942,7 @@ function renderMessages() {
     
     wrapper.appendChild(msgDiv);
 
+    // If it's a Bot response, attach the feedback action tray underneath
     if (!isUser) {
       const tray = document.createElement("div");
       tray.className = "msg-action-tray";
