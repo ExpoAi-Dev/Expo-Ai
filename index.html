@@ -211,23 +211,23 @@
 
 <div id="loginOverlay">
   <h2 style="color: var(--text-color); margin-bottom: 20px;">Welcome to Expoloom AI</h2>
+  <div id="loginOverlay">
+  <h2 style="color: var(--text-color); margin-bottom: 20px;">Welcome to Expoloom AI</h2>
+  
   <div id="g_id_onload"
        data-client_id="410619258030-6oht0c2kjpqeqbk7gd2np0mdpst9sjmi.apps.googleusercontent.com" 
        data-context="signin"
-       data-ux_mode="popup"
-       data-callback="handleCredentialResponse"
-       data-auto_prompt="false">
+       data-callback="handleCredentialResponse">
   </div>
-  <div class="g_id_signin"
-       data-type="standard"
-       data-shape="rectangular"
-       data-theme="outline"
-       data-text="signin_with"
-       data-size="large"
-       data-logo_alignment="left">
+  <div class="g_id_signin" data-type="standard" style="margin-bottom: 25px;"></div>
+
+  <div style="font-size: 13px; color: #64748b; text-align: center; line-height: 1.6; max-width: 280px; margin: 0 auto;">
+    By logging in, you agree to our <br>
+    <a href="/policies.html" style="color: #3b82f6; text-decoration: none; font-weight: 600;">Terms of Service</a> 
+    and 
+    <a href="/policies.html" style="color: #3b82f6; text-decoration: none; font-weight: 600;">Privacy Policy</a>.
   </div>
 </div>
-
 <div id="sheetOverlay" onclick="closeModes()"></div>
 <div id="modesSheet" class="modes-sheet">
   <div class="sheet-handle-area" id="sheetHandle"><div class="sheet-handle"></div></div>
