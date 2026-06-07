@@ -120,7 +120,6 @@
 
     .chat-box { flex: 1; overflow-y: auto; padding: 10px; display: flex; flex-direction: column; scroll-behavior: smooth; }
     
-    /* Updated Message Rendering Styles */
     .message-wrapper { display: flex; flex-direction: column; width: 100%; }
     .message-wrapper.user { align-items: flex-end; }
     .message-wrapper.bot { align-items: flex-start; }
@@ -128,7 +127,6 @@
     .message.user { background: var(--accent-blue); color: white; border-bottom-right-radius: 2px; }
     .message.bot { background: var(--bot-msg-bg); color: var(--text-color); border-bottom-left-radius: 2px; }
     
-    /* New Action Tray Styles */
     .msg-action-tray { display: flex; gap: 4px; margin-top: -4px; margin-bottom: 12px; padding-left: 4px; opacity: 0; transition: opacity 0.2s; }
     .message-wrapper.bot:hover .msg-action-tray { opacity: 1; }
     @media (max-width: 768px) { .msg-action-tray { opacity: 1; } }
