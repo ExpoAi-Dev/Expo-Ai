@@ -1,0 +1,324 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Expoloom AI - Legal Policies</title>
+    <style>
+        :root {
+            --bg-color: #0f172a;
+            --card-bg: #1e293b;
+            --text-main: #f8fafc;
+            --text-muted: #94a3b8;
+            --accent-blue: #3b82f6;
+            --border-color: #334155;
+            --highlight: #38bdf8;
+        }
+
+        html, body, div, span, h1, h2, h3, p, ul, li, button {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-main);
+            line-height: 1.7;
+            padding: 60px 20px;
+        }
+
+        .container {
+            max-width: 1000px;
+            margin: 0 auto;
+        }
+
+        .header {
+            text-align: center;
+            margin-bottom: 50px;
+        }
+
+        .header h1 {
+            font-size: 2.8rem;
+            font-weight: 800;
+            color: var(--text-main);
+            margin-bottom: 12px;
+            letter-spacing: -0.05em;
+        }
+
+        .header p {
+            color: var(--text-muted);
+            font-size: 1.2rem;
+        }
+
+        .tabs {
+            display: flex;
+            justify-content: center;
+            gap: 12px;
+            margin-bottom: 40px;
+            border-bottom: 1px solid var(--border-color);
+            padding-bottom: 20px;
+            flex-wrap: wrap;
+        }
+
+        .tab-btn {
+            background: transparent;
+            border: 1px solid var(--border-color);
+            color: var(--text-muted);
+            padding: 12px 24px;
+            border-radius: 30px;
+            cursor: pointer;
+            font-weight: 600;
+            font-size: 0.95rem;
+            transition: all 0.2s ease-in-out;
+        }
+
+        .tab-btn:hover {
+            border-color: var(--accent-blue);
+            color: var(--text-main);
+        }
+
+        .tab-btn.active {
+            background-color: var(--accent-blue);
+            color: #ffffff;
+            border-color: var(--accent-blue);
+            box-shadow: 0 4px 14px rgba(59, 130, 246, 0.4);
+        }
+
+        .policy-card {
+            background-color: var(--card-bg);
+            border: 1px solid var(--border-color);
+            border-radius: 16px;
+            padding: 50px;
+            box-shadow: 0 10px 30px -10px rgba(0, 0, 0, 0.5);
+        }
+
+        .policy-section {
+            display: none;
+        }
+
+        .policy-section.active {
+            display: block;
+            animation: fadeIn 0.4s ease;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(5px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        h2 {
+            font-size: 2rem;
+            margin-bottom: 30px;
+            color: var(--text-main);
+            border-left: 5px solid var(--accent-blue);
+            padding-left: 16px;
+            letter-spacing: -0.03em;
+        }
+
+        h3 {
+            font-size: 1.3rem;
+            margin: 35px 0 15px 0;
+            color: var(--highlight);
+            font-weight: 600;
+        }
+
+        p {
+            margin-bottom: 20px;
+            color: var(--text-muted);
+            font-size: 1.05rem;
+            text-align: justify;
+        }
+
+        .policy-list {
+            margin-left: 25px;
+            margin-bottom: 25px;
+            color: var(--text-muted);
+            list-style-type: disc;
+        }
+
+        .policy-list li {
+            margin-bottom: 12px;
+            font-size: 1.02rem;
+        }
+
+        .meta-date {
+            font-size: 0.9rem;
+            color: var(--accent-blue);
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            font-weight: 700;
+            margin-bottom: 10px;
+            display: block;
+        }
+
+        .contact-box {
+            margin-top: 40px;
+            background: rgba(59, 130, 246, 0.06);
+            border: 1px solid rgba(59, 130, 246, 0.2);
+            padding: 25px;
+            border-radius: 12px;
+            text-align: center;
+            font-size: 1.05rem;
+        }
+
+        .contact-box a {
+            color: var(--highlight);
+            text-decoration: none;
+            font-weight: 700;
+        }
+
+        .contact-box a:hover {
+            text-decoration: underline;
+        }
+
+        @media (max-width: 768px) {
+            body { padding: 30px 15px; }
+            .policy-card { padding: 25px; }
+            .tab-btn { width: 100%; text-align: center; }
+            h2 { font-size: 1.6rem; }
+        }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <div class="header">
+        <h1>Expoloom AI</h1>
+        <p>Compliance, Legal Framework & Terms of Use</p>
+    </div>
+
+    <div class="tabs">
+        <button class="tab-btn active" onclick="switchTab('terms')">Terms of Service</button>
+        <button class="tab-btn" onclick="switchTab('privacy')">Privacy Policy</button>
+        <button class="tab-btn" onclick="switchTab('refunds')">Refund & Cancellation</button>
+        <button class="tab-btn" onclick="switchTab('delivery')">Shipping & Delivery</button>
+    </div>
+
+    <div class="policy-card">
+        
+        <!-- 1. TERMS OF SERVICE -->
+        <div id="terms" class="policy-section active">
+            <span class="meta-date">Last Updated: June 2026</span>
+            <h2>Terms of Service</h2>
+            <p>Welcome to Expoloom AI. These terms constitute a binding agreement concerning your access to and use of our website, applications, APIs, and suite of artificial intelligence processing tools. By using our services, you acknowledge that you have read, understood, and agree to be bound by these requirements. If you do not agree with these rules, you must discontinue use immediately.</p>
+            
+            <h3>1. Age Requirements</h3>
+            <p>Users must be 18 years of age or older, or meet the minimum legal age requirement required within their respective country of residence, to access or use our artificial intelligence processing interfaces.</p>
+
+            <h3>2. Description of Service & Usage Limits</h3>
+            <p>Expoloom AI operates an advanced artificial intelligence aggregation and routing service. The platform connects users with various generative engines, including text models, image generation pipelines, audio transcription tools, and analytics dashboards. We reserve the right to alter, modify, upgrade, or suspend any feature or backend routing systems at our sole discretion without prior notice.</p>
+            <p>Free plans or trial allocations are subject to platform usage caps. These volume constraints automatically refresh and reset every 24 hours.</p>
+
+            <h3>3. Prohibited Use Policy</h3>
+            <p>The platform must not be used to generate harmful, illegal, or sexually explicit content. You are expressly prohibited from using our systems to:</p>
+            <ul class="policy-list">
+                <li>Attempt to compromise, disrupt, or exploit our infrastructure networks, backend cloud partners, or connected services.</li>
+                <li>Incite violence, promote discrimination, or distribute material intended for scams and financial fraud.</li>
+                <li>Generate explicit sexual material or adult content. The platform only permits clinical, academic, and non-explicit informational discussions regarding health and biological sciences.</li>
+            </ul>
+
+            <h3>4. High-Risk Decision Restraints</h3>
+            <p>Our automation engines and artificial intelligence pipelines are not intended to make autonomous, life-changing determinations. You may not rely on the platform to execute automated choices for individuals within critical high-risk domains, including professional medical diagnoses, formal legal counseling, or critical financial investment configurations.</p>
+
+            <h3>5. Account Creation & Security Obligations</h3>
+            <p>To utilize our platform, you must register and authenticate using our secure Google sign-in system. You agree to provide accurate and complete information during this setup. You are entirely responsible for all interactions, API requests, and financial charges processed under your authenticated profile. Expoloom AI is not liable for any losses or data exposure resulting from unauthorized access to your account session variables.</p>
+            
+            <h3>6. Premium Subscriptions & Payments</h3>
+            <p>Certain advanced processing features require a paid subscription plan. By opting into a premium plan, you agree to pay all associated recurring periodic fees. Payment collection is handled entirely through secure external infrastructure processors, Stripe and Razorpay. You authorize our payment gateways to charge your chosen payment methods automatically at the start of each billing cycle unless you cancel your subscription through your workspace dashboard.</p>
+            
+            <h3>7. Intellectual Property Rights</h3>
+            <p>The core interfaces, source files, stylesheets, structural logic, and brand iconography belong exclusively to Expoloom AI. With respect to user-generated inputs and outputs, such as text prompts, rendered imagery, or parsed audio, Expoloom AI claims no ownership equity. You retain full commercial and intellectual rights to your generated outputs, subject to the baseline terms outlined by our upstream model providers.</p>
+        </div>
+
+        <!-- 2. PRIVACY POLICY -->
+        <div id="privacy" class="policy-section">
+            <span class="meta-date">Last Updated: June 2026</span>
+            <h2>Privacy Policy</h2>
+            <p>Expoloom AI is deeply committed to protecting the privacy and structural integrity of our users' personal data. This document outlines exactly how we collect, store, transmit, process, and safeguard your data when you interact with our platform.</p>
+            
+            <h3>1. Information We Collect</h3>
+            <p>We restrict data collection exclusively to elements necessary for application processing, security tracking, and user account integrity:</p>
+            <ul class="policy-list">
+                <li><strong>Identity Information:</strong> When you authenticate using Google, we capture your unique Google ID, full name, verified email address, and account profile image URL.</li>
+                <li><strong>Conversational History & Visual Metadata:</strong> Chat timelines, processing logs, generation configurations, and contextual histories are securely synchronized to enable continuous workflows across multiple devices.</li>
+                <li><strong>Technical System Metrics:</strong> IP addresses, browser types, user-agent details, system operating platforms, and transaction identifiers are collected for security profiling and internal performance analysis.</li>
+            </ul>
+            
+            <h3>2. Safety Enforcement & Data Review</h3>
+            <p>To detect patterns of abuse, enforce content guidelines, and preserve infrastructure health, we employ both automated safety detection filters and targeted human review protocols to analyze processing payloads and flag system misuse.</p>
+
+            <h3>3. Data Storage & Security</h3>
+            <p>Your account records and interaction history are structured across specialized infrastructure layers. Database tables are isolated inside Appwrite instances and Supabase backends. All analytical processes, operational lookups, and session tokens are transmitted securely using TLS/SSL encryption end-to-end to prevent interceptions by unauthorized networks.</p>
+            
+            <h3>4. Absolute Payment Isolation</h3>
+            <p>Expoloom AI prioritizes financial security. We never store, view, ingest, log, or maintain any credit card numbers, CVVs, PIN codes, net banking credentials, or wallet private codes on our infrastructure. All transaction operations route dynamically through tokenized calls to our accredited secure processing merchants, Razorpay and Stripe, satisfying full compliance standards required by payment network guidelines.</p>
+            
+            <h3>5. Third-Party Data Disclosures</h3>
+            <p>We do not lease, trade, sell, or distribute your private profiles to advertising firms or independent data vendors. Data is shared exclusively with secure cloud processors, Appwrite, Supabase, and Cloudflare, and upstream API infrastructure models solely to execute your real-time processing queries.</p>
+        </div>
+
+        <!-- 3. REFUND & CANCELLATION -->
+        <div id="refunds" class="policy-section">
+            <span class="meta-date">Last Updated: June 2026</span>
+            <h2>Refund & Cancellation Policy</h2>
+            <p>Thank you for choosing Expoloom AI. We highly recommend reviewing our financial, refund, and subscription management terms thoroughly before completing any payment transaction on the platform.</p>
+            
+            <h3>1. Subscription Terminations</h3>
+            <p>You maintain full operational control over your billing status and may cancel your recurring premium plan at any time. The cancellation sequence can be triggered instantly from the billing sub-panel located within the application sidebar framework. Following a cancellation request, your access to the premium tier tools will continue uninterrupted until the conclusion of the active billing cycle. No further recurring processing charges will occur after this request is recorded.</p>
+            
+            <h3>2. Refund Framework</h3>
+            <p>Because Expoloom AI incurs instant, real-time computational costs from upstream infrastructure nodes immediately upon processing user inputs, all sales are final. We do not issue partial, complete, or prorated refunds for accumulated time intervals, underutilized premium allowances, or voluntary subscription cancellations.</p>
+            
+            <h3>3. Transaction Discrepancies and Failures</h3>
+            <p>In cases where a transaction issue occurs, such as a bank account debit without a corresponding platform tier upgrade, the payment processor usually completes an automated reconciliation cycle. If your premium status does not automatically update within 24 hours of a confirmed deduction, please reach out to our billing support desk with your official transaction reference code for manual intervention.</p>
+        </div>
+
+        <!-- 4. SHIPPING & DELIVERY -->
+        <div id="delivery" class="policy-section">
+            <span class="meta-date">Last Updated: June 2026</span>
+            <h2>Shipping & Delivery Policy</h2>
+            <p>This document explains the operational mechanics behind the fulfillment of digital access, feature entitlements, and subscription credits acquired through our digital interface.</p>
+            
+            <h3>1. Immediate Digital Delivery Protocol</h3>
+            <p>Expoloom AI operates exclusively as a cloud-based digital service. We do not manufacture, package, ship, or deliver any physical merchandise, parcel assets, or concrete tangible goods. Consequently, traditional postal delivery times, handling procedures, and physical freight mechanisms do not apply to our operations.</p>
+            
+            <h3>2. Activation Architecture</h3>
+            <p>Fulfillment of your digital purchase takes place automatically through automated transaction webhooks:</p>
+            <ul class="policy-list">
+                <li>Once our integrated merchant architectures, Stripe or Razorpay, register a successful checkout event, an encrypted webhook fires straight to our serverless network.</li>
+                <li>Our backend servers parse the receipt token and update your user profile variables instantly.</li>
+                <li>The expected provisioning window for your workspace features is under 2 seconds from successful checkout confirmation.</li>
+            </ul>
+            
+            <h3>3. Handling Activation Failures</h3>
+            <p>On rare occasions, network latency or gateway delays can extend data update cycles. If your account credentials do not display your upgraded subscription access within 30 minutes of payment confirmation, please clear your browser cache and log back in. If the issue remains unresolved, contact our system administration desk for manual database synchronization.</p>
+        </div>
+
+        <!-- Dynamic Support Footer -->
+        <div class="contact-box">
+            Have questions regarding our legal agreements? Contact our compliance desk: <a href="mailto:support@expoloomai.com">support@expoloomai.com</a>
+        </div>
+
+    </div>
+</div>
+
+<script>
+    function switchTab(tabId) {
+        document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
+        document.querySelectorAll('.policy-section').forEach(sec => sec.classList.remove('active'));
+
+        const selectedBtn = Array.from(document.querySelectorAll('.tab-btn')).find(btn => btn.getAttribute('onclick').includes(tabId));
+        if (selectedBtn) selectedBtn.classList.add('active');
+        
+        document.getElementById(tabId).classList.add('active');
+        
+        window.scrollTo({
+            top: document.querySelector('.tabs').offsetTop - 20,
+            behavior: 'smooth'
+        });
+    }
+</script>
+</body>
+</html>
