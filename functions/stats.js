@@ -18,6 +18,9 @@ export async function onRequest(context) {
   let weekTotals = Array(7).fill(0);
   let weekHourly = Array(7).fill(0).map(() => Array(24).fill(0));
 
+  // NEW: Variable to hold our error message
+  let systemErrorMessage = "";
+
   try {
     const supabaseResponse = await fetch(
       `${env.SUPABASE_URL}/rest/v1/ai_usage_logs?select=created_at,device_name&order=id.desc&limit=5000`, 
@@ -30,12 +33,18 @@ export async function onRequest(context) {
       }
     );
 
+    // NEW: If the database request fails, throw an error so the system catches it
+    if (!supabaseResponse.ok) {
+      const errText = await supabaseResponse.text();
+      throw new Error(`Database connection failed (${supabaseResponse.status}): ${errText}`);
+    }
+
     let logs = [];
-    if (supabaseResponse.ok) {
-        const rawData = await supabaseResponse.json();
-        if (Array.isArray(rawData)) {
-            logs = rawData;
-        }
+    const rawData = await supabaseResponse.json();
+    if (Array.isArray(rawData)) {
+        logs = rawData;
+    } else {
+        throw new Error("Invalid data format received from database (Expected an array).");
     }
 
     const istOffset = 5.5 * 60 * 60 * 1000;
@@ -141,6 +150,8 @@ export async function onRequest(context) {
 
   } catch (err) {
     console.log("Supabase analytics processing error: ", err.message);
+    // NEW: Save the error message so we can show it in the HTML
+    systemErrorMessage = err.message;
   }
 
   // Generate logs rows safe from layout breaks
@@ -181,6 +192,13 @@ export async function onRequest(context) {
     });
   `).join('\n');
 
+  // NEW: HTML for the error alert banner
+  const errorAlertHTML = systemErrorMessage 
+    ? `<div style="background-color: #fef2f2; border-left: 4px solid #ef4444; color: #991b1b; padding: 15px; margin-bottom: 20px; border-radius: 4px; font-size: 14px; word-wrap: break-word;">
+         <strong>⚠️ System Error:</strong> ${systemErrorMessage}
+       </div>`
+    : '';
+
   const htmlContent = `<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -208,6 +226,8 @@ export async function onRequest(context) {
     </style>
 </head>
 <body>
+    ${errorAlertHTML}
+
     <h1 style="font-size: 24px; margin-bottom: 25px; padding-left: 5px;">Expoloom AI Insights</h1>
 
     <div style="display: flex; gap: 15px; margin-bottom: 15px;">
