@@ -42,7 +42,7 @@ export async function onRequest(context) {
         }
     }
 
-    // 2. Exact IST millisecond mathematics (UTC + 5.5 hours) to bypass string runtime crashes
+    // 2. Exact IST millisecond mathematics (UTC + 5.5 hours)
     const istOffset = 5.5 * 60 * 60 * 1000;
     const nowUtc = new Date();
     const nowPatna = new Date(nowUtc.getTime() + istOffset);
@@ -52,10 +52,16 @@ export async function onRequest(context) {
     const currentDay = nowPatna.getUTCDate();
 
     logs.forEach(log => {
-      const logUtcDate = new Date(log.created_at);
+      if (!log.created_at) return;
+
+      // FIX 1: Normalize PostgreSQL space-separated timestamp to compliant ISO-8601 string
+      const sanitizedIsoString = log.created_at.replace(' ', 'T');
+      const logUtcDate = new Date(sanitizedIsoString);
+      
+      // Secondary fallback check if string contains trailing offsets that confuse standard runtime wrappers
       if (isNaN(logUtcDate.getTime())) return; 
 
-      // Shift data values to absolute Patna values safely
+      // Shift data values to absolute Patna values safely via Unix Epoch Math
       const pDate = new Date(logUtcDate.getTime() + istOffset);
 
       const pYear = pDate.getUTCFullYear();
@@ -78,7 +84,7 @@ export async function onRequest(context) {
       let pDayOfWeek = pDate.getUTCDay() - 1; 
       if (pDayOfWeek === -1) pDayOfWeek = 6; 
 
-      // Match running calendar context
+      // FIX 2: Check matching calendar parameters relative to Patna Local Time
       if (pYear === currentYear && pMonth === currentMonth) {
         monthTotal++;
         if (pDay >= 1 && pDay <= 31) {
@@ -90,14 +96,13 @@ export async function onRequest(context) {
           weekHourly[pDayOfWeek][pHour]++;
         }
 
-        // Handle metrics specific to Today
+        // Handle metrics specific to Today (Patna Time Context Match)
         if (pDay === currentDay) {
           todayTotal++;
           todayHourly[pHour]++;
 
-          // Build exact 3-column formatting item sets
+          // Build exact 3-column formatting item sets up to 50 logs
           if (deviceLogs.length < 50) {
-            // Precise layout breakdown configuration
             let timeFormatted = logUtcDate.toLocaleTimeString('en-IN', {
               hour: '2-digit',
               minute: '2-digit',
@@ -109,7 +114,7 @@ export async function onRequest(context) {
             let dLeft = "Unknown Device";
             let dRight = "Data Type";
 
-            // Gracefully separate your "Android Phone | Gem Data" strings down the separator line
+            // FIX 3: Parse "Device/OS | Tracker Key" and safely map down the divider line
             if (log.device_name && log.device_name.includes(" | ")) {
                 const stringParts = log.device_name.split(" | ");
                 dLeft = stringParts[0].trim();
