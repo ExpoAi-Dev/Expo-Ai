@@ -91,11 +91,13 @@ export async function onRequest(context) {
 
           // Build item formatting for the "Live Device Activity" section
           if (deviceLogs.length < 50) {
-            const timeFormatted = new Date(log.created_at).toLocaleTimeString('en-IN', {
+            // FIXED: Added explicitly structured timeZone parameter to enforce exact local matching
+            const timeFormatted = logDate.toLocaleTimeString('en-IN', {
               hour: '2-digit',
               minute: '2-digit',
               second: '2-digit',
-              hour12: true
+              hour12: true,
+              timeZone: targetTimeZone
             });
             deviceLogs.push({ time: timeFormatted, device: log.device_name });
           }
@@ -243,8 +245,7 @@ export async function onRequest(context) {
                     datasets: [{ 
                         data: [${weekHourly[idx].join(',')}], 
                         backgroundColor: '#000', 
-                        barThickness: 8, 
-                        borderRadius: 4 
+                        barThickness: 8, \n                        borderRadius: 4 
                     }] 
                 },
                 options: opt
