@@ -13,7 +13,7 @@ export async function onRequest(context) {
   // Tracking counters for the API Key usage
   let gemDataTotal = 0;
   let gDataTotal = 0;
-  let imgDataTotal = 0; // NEW: Image Data Tracker
+  let imgDataTotal = 0; // Image Data Tracker
   
   // Initialize graphs datasets with 0s
   let todayHourly = Array(24).fill(0);
@@ -36,24 +36,29 @@ export async function onRequest(context) {
 
     const logs = await supabaseResponse.json();
 
-    // 2. Parse logs to extract real-time Patna metric states
+    // 2. Setup current time calculations for Patna (Asia/Kolkata) using absolute millisecond shifts
     const targetTimeZone = 'Asia/Kolkata';
-    const nowPatna = new Date(new Date().toLocaleString("en-US", { timeZone: targetTimeZone }));
+    const istOffsetMilliseconds = 5.5 * 60 * 60 * 1000;
     
-    const currentYear = nowPatna.getFullYear();
-    const currentMonth = nowPatna.getMonth(); // 0-11
-    const currentDay = nowPatna.getDate();
+    const nowUtc = new Date();
+    const nowPatna = new Date(nowUtc.getTime() + istOffsetMilliseconds);
+    
+    const currentYear = nowPatna.getUTCFullYear();
+    const currentMonth = nowPatna.getUTCMonth(); // 0-11
+    const currentDay = nowPatna.getUTCDate();
 
     logs.forEach(log => {
-      const logDate = new Date(log.created_at);
-      // Convert database timestamp cleanly into individual localized Patna integers
-      const patnaStr = logDate.toLocaleString("en-US", { timeZone: targetTimeZone });
-      const pDate = new Date(patnaStr);
+      // Parse raw UTC timestamp
+      const logUtcDate = new Date(log.created_at);
+      if (isNaN(logUtcDate.getTime())) return; // Skip corrupted rows safely
 
-      const pYear = pDate.getFullYear();
-      const pMonth = pDate.getMonth();
-      const pDay = pDate.getDate();
-      const pHour = pDate.getHours();
+      // Shift raw timestamp to local Patna time mathematically to avoid parsing crashes
+      const pDate = new Date(logUtcDate.getTime() + istOffsetMilliseconds);
+
+      const pYear = pDate.getUTCFullYear();
+      const pMonth = pDate.getUTCMonth();
+      const pDay = pDate.getUTCDate();
+      const pHour = pDate.getUTCHours();
 
       // Increment API Key tracking safely based on the tags we added in chat.js
       if (log.device_name) {
@@ -66,8 +71,8 @@ export async function onRequest(context) {
           }
       }
 
-      // Adjust day of week string index matching standard days array mapping
-      let pDayOfWeek = pDate.getDay() - 1; 
+      // Adjust day of week string index matching standard days array mapping (0 = Mon, 6 = Sun)
+      let pDayOfWeek = pDate.getUTCDay() - 1; 
       if (pDayOfWeek === -1) pDayOfWeek = 6; // Shift Sunday to last element position
 
       // Evaluate data bounds matches
@@ -91,15 +96,18 @@ export async function onRequest(context) {
 
           // Build item formatting for the "Live Device Activity" section
           if (deviceLogs.length < 50) {
-            // FIXED: Added explicitly structured timeZone parameter to enforce exact local matching
-            const timeFormatted = logDate.toLocaleTimeString('en-IN', {
+            const timeFormatted = logUtcDate.toLocaleTimeString('en-IN', {
               hour: '2-digit',
               minute: '2-digit',
               second: '2-digit',
               hour12: true,
               timeZone: targetTimeZone
             });
-            deviceLogs.push({ time: timeFormatted, device: log.device_name });
+            
+            deviceLogs.push({ 
+              time: timeFormatted, 
+              device: log.device_name || "Unknown Device" 
+            });
           }
         }
       }
@@ -127,11 +135,11 @@ export async function onRequest(context) {
         .day-flex { display: flex; justify-content: space-between; align-items: center; font-weight: 600; font-size: 16px; }
         .day-graph-box { display: none; height: 180px; margin-top: 10px; padding-top: 10px; }
         
-        /* Device log styles */
+        /* Device log styles formatted for optimal dashboard readability */
         .logs-container { display: none; margin-top: 15px; border-top: 1px solid #eee; padding-top: 15px; max-height: 250px; overflow-y: auto; }
-        .log-item { display: flex; justify-content: space-between; padding: 10px 5px; border-bottom: 1px solid #f5f5f5; font-size: 14px; }
-        .log-time { font-weight: 700; color: #000; }
-        .log-device { background: #f0f0f0; padding: 2px 8px; border-radius: 6px; font-size: 12px; font-weight: 600; }
+        .log-item { display: flex; justify-content: space-between; align-items: center; padding: 12px 5px; border-bottom: 1px solid #f5f5f5; font-size: 14px; }
+        .log-time { font-weight: 700; color: #000; flex: 1; }
+        .log-device { background: #f0f0f0; padding: 4px 10px; border-radius: 6px; font-size: 12px; font-weight: 600; text-align: right; }
         .no-logs { text-align: center; color: #999; padding: 20px 0; font-size: 14px; }
     </style>
 </head>
@@ -245,7 +253,8 @@ export async function onRequest(context) {
                     datasets: [{ 
                         data: [${weekHourly[idx].join(',')}], 
                         backgroundColor: '#000', 
-                        barThickness: 8, \n                        borderRadius: 4 
+                        barThickness: 8, 
+                        borderRadius: 4 
                     }] 
                 },
                 options: opt
