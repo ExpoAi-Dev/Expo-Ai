@@ -207,32 +207,7 @@
 
 <body class="dark-theme"> 
 
-<div id="loginOverlay">
-  <h2 style="color: var(--text-color); margin-bottom: 20px;">Welcome to Expoloom AI</h2>
-  <div id="g_id_onload"
-       data-client_id="410619258030-6oht0c2kjpqeqbk7gd2np0mdpst9sjmi.apps.googleusercontent.com" 
-       data-context="signin"
-       data-ux_mode="popup"
-       data-callback="handleCredentialResponse"
-       data-auto_prompt="false">
-  </div>
-  <div class="g_id_signin"
-       data-type="standard"
-       data-shape="rectangular"
-       data-theme="outline"
-       data-text="signin_with"
-       data-size="large"
-       data-logo_alignment="left"
-       style="margin-bottom: 25px;">
-  </div>
-
-  <div style="font-size: 13px; color: #64748b; text-align: center; line-height: 1.6; max-width: 280px; margin-top: 15px; font-family: Arial, sans-serif;">
-    By logging in, you agree to our <br>
-    <a href="/policies.html" style="color: #2563eb; text-decoration: none; font-weight: 600;">Terms of Service</a> 
-    and 
-    <a href="/policies.html" style="color: #2563eb; text-decoration: none; font-weight: 600;">Privacy Policy</a>.
-  </div>
-</div>
+<div id="loginOverlay"></div>
 
 <div id="sheetOverlay" onclick="closeModes()"></div>
 <div id="modesSheet" class="modes-sheet">
@@ -377,49 +352,11 @@
 </div>
 
 <script>
-// --- GOOGLE AUTHENTICATION LOGIC ---
-function decodeJwtResponse(token) {
-    let base64Url = token.split('.')[1];
-    let base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
-    let jsonPayload = decodeURIComponent(atob(base64).split('').map(function(c) {
-        return '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2);
-    }).join(''));
-    return JSON.parse(jsonPayload);
-}
-
-async function handleCredentialResponse(response) {
-    const responsePayload = decodeJwtResponse(response.credential);
-    localStorage.setItem("googleUser", JSON.stringify(responsePayload));
-    applyUserData(responsePayload);
-
-    try {
-        const supabaseUrl = "https://wcrtftqldlqvybwtlvim.supabase.co"; 
-        const supabaseAnonKey = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6IndjcnRmdHFsZGxxdnlid3RsdmltIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzg5Nzk1MzIsImV4cCI6MjA5NDU1NTUzMn0.wChKXrrCIuNRxfs5o-mOx8cIHusTzAJhXSdRzqSTVTk";
-
-        const supabaseSyncResponse = await fetch(`${supabaseUrl}/auth/v1/token?grant_type=id_token`, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'apikey': supabaseAnonKey
-            },
-            body: JSON.stringify({
-                provider: 'google',
-                id_token: response.credential
-            })
-        });
-
-        if (!supabaseSyncResponse.ok) {
-            console.error("Failed to sync with Supabase:", await supabaseSyncResponse.text());
-        }
-    } catch (err) {
-        console.error("Supabase link sync error:", err);
-    }
-}
-
+// --- AUTHENTICATION LOGIC ---
 function applyUserData(user) {
     document.getElementById("loginOverlay").style.display = "none";
-    document.getElementById("accountName").innerText = user.name;
-    document.getElementById("accountEmail").innerText = user.email;
+    document.getElementById("accountName").innerText = user.name || "User";
+    document.getElementById("accountEmail").innerText = user.email || "";
     
     const profileBtn = document.getElementById("userProfileBtn");
     if (user.picture) {
@@ -455,7 +392,9 @@ function applyUserData(user) {
 
 function signOutGoogle() {
     localStorage.removeItem("googleUser");
-    document.getElementById("loginOverlay").style.display = "flex";
+    localStorage.removeItem("authUser");
+    localStorage.removeItem("sb_access_token");
+    
     document.getElementById("accountPanel").style.display = "none";
     document.getElementById("userProfileBtn").innerHTML = "👤";
 
@@ -467,15 +406,20 @@ function signOutGoogle() {
     currentUserEmail = null;
     chats = {};
     currentChat = null;
-    renderChats();
-    renderMessages();
+    
+    window.location.href = "/login.html";
 }
 
 window.onload = () => {
-    const storedUser = localStorage.getItem("googleUser");
-    if (storedUser) {
+    // Check local storage records from the new 2-page system
+    const storedUser = localStorage.getItem("authUser") || localStorage.getItem("googleUser");
+    const accessToken = localStorage.getItem("sb_access_token");
+    
+    if (storedUser && accessToken) {
         applyUserData(JSON.parse(storedUser));
     } else {
+        // Redirection routing to 2-page system
+        window.location.href = "/login.html";
         document.getElementById("loginOverlay").style.display = "flex";
     }
 };
@@ -728,7 +672,16 @@ async function toggleVoice() {
       const formData = new FormData(); formData.append("file", audioBlob, "audio.webm");
 
       try {
-        const response = await fetch("/chat", { method: "POST", body: formData });
+        const token = localStorage.getItem("sb_access_token") || "";
+        const headersConfig = {};
+        if (token) headersConfig['Authorization'] = `Bearer ${token}`;
+
+        const response = await fetch("/chat", { 
+            method: "POST", 
+            headers: headersConfig,
+            body: formData 
+        });
+        
         if (response.ok) {
            const data = await response.json();
            if (data.text) { input.value = (input.value + " " + data.text).trim(); autoExpand(input); }
@@ -1028,7 +981,16 @@ async function askAI() {
   conversationPayload.unshift({ role: 'system', parts: [{ text: 'Your name is Expoloom AI. You were created by the Expoloom Team. Always identify as Expoloom AI and never as a Google model.' }] });
 
   try {
-    const res = await fetch("/chat", { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ messages: conversationPayload, mode: activeSpecial || currentMode }), signal: abortController.signal });
+    const token = localStorage.getItem("sb_access_token") || "";
+    const headersConfig = { 'Content-Type': 'application/json' };
+    if (token) headersConfig['Authorization'] = `Bearer ${token}`;
+
+    const res = await fetch("/chat", { 
+      method: 'POST', 
+      headers: headersConfig, 
+      body: JSON.stringify({ messages: conversationPayload, mode: activeSpecial || currentMode }), 
+      signal: abortController.signal 
+    });
     const contentType = res.headers.get("content-type"); removeLoading();
 
     if (contentType && contentType.includes("application/json")) {
