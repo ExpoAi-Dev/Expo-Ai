@@ -13,7 +13,7 @@ export async function onRequest(context) {
   // Tracking counters for the API Key usage
   let gemDataTotal = 0;
   let gDataTotal = 0;
-  let imgDataTotal = 0; // Image Data Tracker
+  let imgDataTotal = 0;
   
   // Initialize graphs datasets with 0s
   let todayHourly = Array(24).fill(0);
@@ -34,12 +34,17 @@ export async function onRequest(context) {
       }
     );
 
-    const logs = await supabaseResponse.json();
+    let logs = [];
+    // CRITICAL FIX: Ensure Supabase actually returned a valid array before looping to prevent silent crashes
+    if (supabaseResponse.ok) {
+        const rawData = await supabaseResponse.json();
+        if (Array.isArray(rawData)) {
+            logs = rawData;
+        }
+    }
 
     // 2. Setup current time calculations for Patna (Asia/Kolkata) using absolute millisecond shifts
-    const targetTimeZone = 'Asia/Kolkata';
     const istOffsetMilliseconds = 5.5 * 60 * 60 * 1000;
-    
     const nowUtc = new Date();
     const nowPatna = new Date(nowUtc.getTime() + istOffsetMilliseconds);
     
@@ -48,9 +53,8 @@ export async function onRequest(context) {
     const currentDay = nowPatna.getUTCDate();
 
     logs.forEach(log => {
-      // Parse raw UTC timestamp
       const logUtcDate = new Date(log.created_at);
-      if (isNaN(logUtcDate.getTime())) return; // Skip corrupted rows safely
+      if (isNaN(logUtcDate.getTime())) return; 
 
       // Shift raw timestamp to local Patna time mathematically to avoid parsing crashes
       const pDate = new Date(logUtcDate.getTime() + istOffsetMilliseconds);
@@ -73,11 +77,11 @@ export async function onRequest(context) {
 
       // Adjust day of week string index matching standard days array mapping (0 = Mon, 6 = Sun)
       let pDayOfWeek = pDate.getUTCDay() - 1; 
-      if (pDayOfWeek === -1) pDayOfWeek = 6; // Shift Sunday to last element position
+      if (pDayOfWeek === -1) pDayOfWeek = 6; 
 
       // Evaluate data bounds matches
       if (pYear === currentYear && pMonth === currentMonth) {
-        // Increment global monthly stats
+        
         monthTotal++;
         if (pDay >= 1 && pDay <= 31) {
           monthlyDaily[pDay - 1]++;
@@ -94,19 +98,32 @@ export async function onRequest(context) {
           todayTotal++;
           todayHourly[pHour]++;
 
-          // Build item formatting for the "Live Device Activity" section
+          // Build exact 3-column formatting for the "Live Device Activity" section
           if (deviceLogs.length < 50) {
-            const timeFormatted = logUtcDate.toLocaleTimeString('en-IN', {
-              hour: '2-digit',
-              minute: '2-digit',
-              second: '2-digit',
-              hour12: true,
-              timeZone: targetTimeZone
-            });
             
-            deviceLogs.push({ 
-              time: timeFormatted, 
-              device: log.device_name || "Unknown Device" 
+            // Format time safely
+            let timeFormatted = "";
+            try {
+                timeFormatted = new Intl.DateTimeFormat('en-IN', {
+                    hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: true, timeZone: 'Asia/Kolkata'
+                }).format(logUtcDate);
+            } catch(e) {
+                timeFormatted = logUtcDate.toISOString().substring(11, 19);
+            }
+
+            // Split the device name string (e.g. "Android Phone | Gem Data" -> Left: "Android Phone", Right: "Gem Data")
+            let dLeft = log.device_name || "Unknown";
+            let dRight = "";
+            if (log.device_name && log.device_name.includes(" | ")) {
+                const parts = log.device_name.split(" | ");
+                dLeft = parts[0].trim();
+                dRight = parts[1].trim();
+            }
+
+            deviceLogs.push({
+                deviceLeft: dLeft,
+                time: timeFormatted,
+                deviceRight: dRight
             });
           }
         }
@@ -135,11 +152,13 @@ export async function onRequest(context) {
         .day-flex { display: flex; justify-content: space-between; align-items: center; font-weight: 600; font-size: 16px; }
         .day-graph-box { display: none; height: 180px; margin-top: 10px; padding-top: 10px; }
         
-        /* Device log styles formatted for optimal dashboard readability */
+        /* 3-Column Layout Styles */
         .logs-container { display: none; margin-top: 15px; border-top: 1px solid #eee; padding-top: 15px; max-height: 250px; overflow-y: auto; }
-        .log-item { display: flex; justify-content: space-between; align-items: center; padding: 12px 5px; border-bottom: 1px solid #f5f5f5; font-size: 14px; }
-        .log-time { font-weight: 700; color: #000; flex: 1; }
-        .log-device { background: #f0f0f0; padding: 4px 10px; border-radius: 6px; font-size: 12px; font-weight: 600; text-align: right; }
+        .log-item { display: flex; justify-content: space-between; align-items: center; padding: 12px 5px; border-bottom: 1px solid #f5f5f5; font-size: 13px; font-weight: 600; }
+        .log-col { flex: 1; }
+        .log-left { text-align: left; color: #64748b; }
+        .log-center { text-align: center; color: #000; font-weight: 700; }
+        .log-right { text-align: right; color: #2563eb; }
         .no-logs { text-align: center; color: #999; padding: 20px 0; font-size: 14px; }
     </style>
 </head>
@@ -180,8 +199,9 @@ export async function onRequest(context) {
             ${deviceLogs.length === 0 ? `<div class="no-logs">No messages sent yet today</div>` : 
                 deviceLogs.map(log => `
                     <div class="log-item">
-                        <span class="log-time">${log.time}</span>
-                        <span class="log-device">${log.device}</span>
+                        <span class="log-col log-left">${log.deviceLeft}</span>
+                        <span class="log-col log-center">${log.time}</span>
+                        <span class="log-col log-right">${log.deviceRight}</span>
                     </div>
                 `).join('')
             }
