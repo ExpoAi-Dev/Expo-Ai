@@ -13,7 +13,7 @@ export async function onRequest(context) {
   // Tracking counters for the API Key usage
   let gemDataTotal = 0;
   let gDataTotal = 0;
-  let imgDataTotal = 0;
+  let imgDataTotal = 0; 
   
   // Initialize graphs datasets with 0s
   let todayHourly = Array(24).fill(0);
@@ -22,7 +22,7 @@ export async function onRequest(context) {
   let weekHourly = Array(7).fill(0).map(() => Array(24).fill(0));
 
   try {
-    // 1. Fetch ALL logs for the current calendar month from Supabase
+    // 1. Fetch logs from Supabase
     const supabaseResponse = await fetch(
       `${env.SUPABASE_URL}/rest/v1/ai_usage_logs?select=created_at,device_name&order=id.desc&limit=5000`, 
       {
@@ -35,7 +35,6 @@ export async function onRequest(context) {
     );
 
     let logs = [];
-    // CRITICAL FIX: Ensure Supabase actually returned a valid array before looping to prevent silent crashes
     if (supabaseResponse.ok) {
         const rawData = await supabaseResponse.json();
         if (Array.isArray(rawData)) {
@@ -43,28 +42,28 @@ export async function onRequest(context) {
         }
     }
 
-    // 2. Setup current time calculations for Patna (Asia/Kolkata) using absolute millisecond shifts
-    const istOffsetMilliseconds = 5.5 * 60 * 60 * 1000;
+    // 2. Exact IST millisecond mathematics (UTC + 5.5 hours) to bypass string runtime crashes
+    const istOffset = 5.5 * 60 * 60 * 1000;
     const nowUtc = new Date();
-    const nowPatna = new Date(nowUtc.getTime() + istOffsetMilliseconds);
+    const nowPatna = new Date(nowUtc.getTime() + istOffset);
     
     const currentYear = nowPatna.getUTCFullYear();
-    const currentMonth = nowPatna.getUTCMonth(); // 0-11
+    const currentMonth = nowPatna.getUTCMonth(); 
     const currentDay = nowPatna.getUTCDate();
 
     logs.forEach(log => {
       const logUtcDate = new Date(log.created_at);
       if (isNaN(logUtcDate.getTime())) return; 
 
-      // Shift raw timestamp to local Patna time mathematically to avoid parsing crashes
-      const pDate = new Date(logUtcDate.getTime() + istOffsetMilliseconds);
+      // Shift data values to absolute Patna values safely
+      const pDate = new Date(logUtcDate.getTime() + istOffset);
 
       const pYear = pDate.getUTCFullYear();
       const pMonth = pDate.getUTCMonth();
       const pDay = pDate.getUTCDate();
       const pHour = pDate.getUTCHours();
 
-      // Increment API Key tracking safely based on the tags we added in chat.js
+      // Count global API states
       if (log.device_name) {
           if (log.device_name.includes('G Data')) {
               gDataTotal++;
@@ -75,55 +74,54 @@ export async function onRequest(context) {
           }
       }
 
-      // Adjust day of week string index matching standard days array mapping (0 = Mon, 6 = Sun)
+      // Convert day index tracking mapping (0 = Mon, 6 = Sun)
       let pDayOfWeek = pDate.getUTCDay() - 1; 
       if (pDayOfWeek === -1) pDayOfWeek = 6; 
 
-      // Evaluate data bounds matches
+      // Match running calendar context
       if (pYear === currentYear && pMonth === currentMonth) {
-        
         monthTotal++;
         if (pDay >= 1 && pDay <= 31) {
           monthlyDaily[pDay - 1]++;
         }
 
-        // Aggregate running weekly chart distributions
         if (pDayOfWeek >= 0 && pDayOfWeek < 7) {
           weekTotals[pDayOfWeek]++;
           weekHourly[pDayOfWeek][pHour]++;
         }
 
-        // Aggregate running explicit daily timeline bounds
+        // Handle metrics specific to Today
         if (pDay === currentDay) {
           todayTotal++;
           todayHourly[pHour]++;
 
-          // Build exact 3-column formatting for the "Live Device Activity" section
+          // Build exact 3-column formatting item sets
           if (deviceLogs.length < 50) {
-            
-            // Format time safely
-            let timeFormatted = "";
-            try {
-                timeFormatted = new Intl.DateTimeFormat('en-IN', {
-                    hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: true, timeZone: 'Asia/Kolkata'
-                }).format(logUtcDate);
-            } catch(e) {
-                timeFormatted = logUtcDate.toISOString().substring(11, 19);
-            }
+            // Precise layout breakdown configuration
+            let timeFormatted = logUtcDate.toLocaleTimeString('en-IN', {
+              hour: '2-digit',
+              minute: '2-digit',
+              second: '2-digit',
+              hour12: true,
+              timeZone: 'Asia/Kolkata'
+            });
 
-            // Split the device name string (e.g. "Android Phone | Gem Data" -> Left: "Android Phone", Right: "Gem Data")
-            let dLeft = log.device_name || "Unknown";
-            let dRight = "";
+            let dLeft = "Unknown Device";
+            let dRight = "Data Type";
+
+            // Gracefully separate your "Android Phone | Gem Data" strings down the separator line
             if (log.device_name && log.device_name.includes(" | ")) {
-                const parts = log.device_name.split(" | ");
-                dLeft = parts[0].trim();
-                dRight = parts[1].trim();
+                const stringParts = log.device_name.split(" | ");
+                dLeft = stringParts[0].trim();
+                dRight = stringParts[1].trim();
+            } else if (log.device_name) {
+                dLeft = log.device_name;
             }
 
             deviceLogs.push({
-                deviceLeft: dLeft,
-                time: timeFormatted,
-                deviceRight: dRight
+              deviceLeft: dLeft,
+              time: timeFormatted,
+              deviceRight: dRight
             });
           }
         }
@@ -152,13 +150,13 @@ export async function onRequest(context) {
         .day-flex { display: flex; justify-content: space-between; align-items: center; font-weight: 600; font-size: 16px; }
         .day-graph-box { display: none; height: 180px; margin-top: 10px; padding-top: 10px; }
         
-        /* 3-Column Layout Styles */
+        /* 3-Column Precise Row Alignment CSS */
         .logs-container { display: none; margin-top: 15px; border-top: 1px solid #eee; padding-top: 15px; max-height: 250px; overflow-y: auto; }
         .log-item { display: flex; justify-content: space-between; align-items: center; padding: 12px 5px; border-bottom: 1px solid #f5f5f5; font-size: 13px; font-weight: 600; }
-        .log-col { flex: 1; }
-        .log-left { text-align: left; color: #64748b; }
+        .log-col { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .log-left { text-align: left; color: #555; }
         .log-center { text-align: center; color: #000; font-weight: 700; }
-        .log-right { text-align: right; color: #2563eb; }
+        .log-right { text-align: right; color: #2563eb; font-weight: 700; }
         .no-logs { text-align: center; color: #999; padding: 20px 0; font-size: 14px; }
     </style>
 </head>
