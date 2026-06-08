@@ -1,0 +1,175 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sign Up - Expoloom AI</title>
+    <script src="https://accounts.google.com/gsi/client" async defer></script>
+    <style>
+        body { 
+            font-family: -apple-system, sans-serif; 
+            display: flex; 
+            justify-content: center; 
+            align-items: center; 
+            height: 100vh; 
+            margin: 0; 
+            background: #0f172a; 
+            color: #ffffff;
+        }
+        .auth-box { 
+            background: #1e293b;
+            padding: 40px;
+            border-radius: 16px;
+            text-align: center; 
+            width: 85%; 
+            max-width: 380px; 
+            box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+            border: 1px solid #334155;
+        }
+        h2 { margin-top: 0; margin-bottom: 25px; font-weight: 600; }
+        input { 
+            padding: 15px; 
+            width: 100%; 
+            border: 1px solid #334155; 
+            background: #0f172a;
+            color: #ffffff;
+            border-radius: 10px; 
+            margin-bottom: 15px; 
+            box-sizing: border-box; 
+            font-size: 15px; 
+            outline: none; 
+        }
+        input:focus { border-color: #2563eb; }
+        button.primary-btn { 
+            background: #2563eb; 
+            color: #fff; 
+            border: none; 
+            padding: 15px; 
+            border-radius: 10px; 
+            width: 100%; 
+            font-weight: bold; 
+            cursor: pointer; 
+            font-size: 16px; 
+            margin-bottom: 20px;
+            transition: 0.2s;
+        }
+        button.primary-btn:hover { background: #1d4ed8; }
+        .divider {
+            display: flex; align-items: center; text-align: center; margin-bottom: 20px; color: #64748b; font-size: 14px;
+        }
+        .divider::before, .divider::after { content: ''; flex: 1; border-bottom: 1px solid #334155; }
+        .divider:not(:empty)::before { margin-right: .25em; }
+        .divider:not(:empty)::after { margin-left: .25em; }
+        .links { margin-top: 20px; font-size: 14px; color: #94a3b8; }
+        .links a { color: #3b82f6; text-decoration: none; font-weight: 600; }
+        .links a:hover { text-decoration: underline; }
+        .error-msg { color: #ef4444; font-size: 14px; margin-bottom: 15px; display: none; }
+    </style>
+</head>
+<body>
+
+    <div class="auth-box">
+        <h2>Create an Account</h2>
+        <div id="errorMsg" class="error-msg"></div>
+        
+        <input type="text" id="name" placeholder="Full Name" required>
+        <input type="email" id="email" placeholder="Email Address" required>
+        <input type="password" id="password" placeholder="Password" required>
+        <button class="primary-btn" onclick="signUpEmail()">Sign Up</button>
+
+        <div class="divider">OR</div>
+
+        <div id="g_id_onload"
+             data-client_id="410619258030-6oht0c2kjpqeqbk7gd2np0mdpst9sjmi.apps.googleusercontent.com" 
+             data-context="signup"
+             data-ux_mode="popup"
+             data-callback="handleGoogleSignup"
+             data-auto_prompt="false">
+        </div>
+        <div class="g_id_signin"
+             data-type="standard"
+             data-shape="rectangular"
+             data-theme="outline"
+             data-text="signup_with"
+             data-size="large"
+             data-logo_alignment="center"
+             style="display: flex; justify-content: center;">
+        </div>
+
+        <div class="links">
+            Already have an account? <a href="/login.html">Sign In</a>
+        </div>
+    </div>
+
+    <script>
+        async function signUpEmail() {
+            const name = document.getElementById('name').value;
+            const email = document.getElementById('email').value;
+            const password = document.getElementById('password').value;
+            const errorMsg = document.getElementById('errorMsg');
+            
+            if (!name || !email || !password) {
+                errorMsg.innerText = "Please fill in all fields.";
+                errorMsg.style.display = "block";
+                return;
+            }
+
+            try {
+                const res = await fetch('/auth', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ action: 'signup', name, email, password })
+                });
+                const data = await res.json();
+
+                if (data.success) {
+                    finalizeLogin(data.session);
+                } else {
+                    errorMsg.innerText = data.error;
+                    errorMsg.style.display = "block";
+                }
+            } catch (err) {
+                errorMsg.innerText = "Connection error. Please try again.";
+                errorMsg.style.display = "block";
+            }
+        }
+
+        async function handleGoogleSignup(response) {
+            const errorMsg = document.getElementById('errorMsg');
+            try {
+                const res = await fetch('/auth', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ action: 'google', token: response.credential })
+                });
+                const data = await res.json();
+
+                if (data.success) {
+                    finalizeLogin(data.session);
+                } else {
+                    errorMsg.innerText = data.error;
+                    errorMsg.style.display = "block";
+                }
+            } catch (err) {
+                errorMsg.innerText = "Google authentication failed. Please try again.";
+                errorMsg.style.display = "block";
+            }
+        }
+
+        function finalizeLogin(sessionData) {
+            localStorage.setItem("sb_access_token", sessionData.access_token);
+            const userObj = {
+                name: sessionData.user.user_metadata?.name || sessionData.user.user_metadata?.full_name || "New User",
+                email: sessionData.user.email,
+                picture: sessionData.user.user_metadata?.avatar_url || sessionData.user.user_metadata?.picture || ""
+            };
+            localStorage.setItem("authUser", JSON.stringify(userObj));
+            window.location.href = "/";
+        }
+
+        document.addEventListener('keypress', function (e) {
+            if (e.key === 'Enter') signUpEmail();
+        });
+    </script>
+</body>
+</html>
