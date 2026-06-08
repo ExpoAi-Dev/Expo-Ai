@@ -18,8 +18,9 @@ export async function onRequest(context) {
   let weekTotals = Array(7).fill(0);
   let weekHourly = Array(7).fill(0).map(() => Array(24).fill(0));
 
-  // NEW: Variable to hold our error message
   let systemErrorMessage = "";
+  let diagnosticMessage = "";
+  let rawLogsCount = 0;
 
   try {
     const supabaseResponse = await fetch(
@@ -33,7 +34,6 @@ export async function onRequest(context) {
       }
     );
 
-    // NEW: If the database request fails, throw an error so the system catches it
     if (!supabaseResponse.ok) {
       const errText = await supabaseResponse.text();
       throw new Error(`Database connection failed (${supabaseResponse.status}): ${errText}`);
@@ -43,6 +43,7 @@ export async function onRequest(context) {
     const rawData = await supabaseResponse.json();
     if (Array.isArray(rawData)) {
         logs = rawData;
+        rawLogsCount = logs.length;
     } else {
         throw new Error("Invalid data format received from database (Expected an array).");
     }
@@ -148,13 +149,17 @@ export async function onRequest(context) {
       }
     });
 
+    // If rows were pulled but everything processed as 0, construct diagnostic advice
+    if (rawLogsCount > 0 && todayTotal === 0) {
+      diagnosticMessage = `Connected to Supabase successfully! Found ${rawLogsCount} total logs in the table, but 0 logs matched your local Patna calendar view tracking parameters (Targeting Day: ${currentDay}, Month Index: ${currentMonth}, Year: ${currentYear}). Check if your database table contains rows with older/different timestamp metrics.`;
+    } else if (rawLogsCount === 0) {
+      diagnosticMessage = `Connected to Supabase table 'ai_usage_logs' successfully, but the table returned exactly 0 total records. Send a message through your chat application first to ensure logs are saving to the database.`;
+    }
+
   } catch (err) {
-    console.log("Supabase analytics processing error: ", err.message);
-    // NEW: Save the error message so we can show it in the HTML
     systemErrorMessage = err.message;
   }
 
-  // Generate logs rows safe from layout breaks
   const renderedLogs = deviceLogs.length === 0 
     ? `<div class="no-logs">No messages sent yet today</div>` 
     : deviceLogs.map(log => `
@@ -165,7 +170,6 @@ export async function onRequest(context) {
         </div>
       `).join('');
 
-  // Generate weekly menus safe from execution breaks
   const renderedWeekly = days.map((day, idx) => `
     <div class="day-row" onclick="toggle('graph-${day}')">
         <div class="day-flex"><span>${day}</span><span>${weekTotals[idx]}</span></div>
@@ -175,7 +179,6 @@ export async function onRequest(context) {
     </div>
   `).join('');
 
-  // Generate inline chart construction directives safe from compilation breaks
   const renderedChartsJS = days.map((day, idx) => `
     new Chart(document.getElementById('chart-${day}'), {
         type: 'bar',
@@ -192,12 +195,17 @@ export async function onRequest(context) {
     });
   `).join('\n');
 
-  // NEW: HTML for the error alert banner
-  const errorAlertHTML = systemErrorMessage 
-    ? `<div style="background-color: #fef2f2; border-left: 4px solid #ef4444; color: #991b1b; padding: 15px; margin-bottom: 20px; border-radius: 4px; font-size: 14px; word-wrap: break-word;">
-         <strong>⚠️ System Error:</strong> ${systemErrorMessage}
-       </div>`
-    : '';
+  // Diagnostic Alert HTML
+  let noticeHTML = '';
+  if (systemErrorMessage) {
+    noticeHTML = `<div style="background-color: #fef2f2; border-left: 4px solid #ef4444; color: #991b1b; padding: 15px; margin-bottom: 20px; border-radius: 4px; font-size: 14px; word-wrap: break-word;">
+                   <strong>⚠️ Critical System Error:</strong> ${systemErrorMessage}
+                 </div>`;
+  } else if (diagnosticMessage) {
+    noticeHTML = `<div style="background-color: #fefcbf; border-left: 4px solid #ecc94b; color: #744210; padding: 15px; margin-bottom: 20px; border-radius: 4px; font-size: 14px; line-height: 1.5;">
+                   <strong>ℹ️ Diagnostic Report:</strong> ${diagnosticMessage}
+                 </div>`;
+  }
 
   const htmlContent = `<!DOCTYPE html>
 <html lang="en">
@@ -226,7 +234,7 @@ export async function onRequest(context) {
     </style>
 </head>
 <body>
-    ${errorAlertHTML}
+    ${noticeHTML}
 
     <h1 style="font-size: 24px; margin-bottom: 25px; padding-left: 5px;">Expoloom AI Insights</h1>
 
