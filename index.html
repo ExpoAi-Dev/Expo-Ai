@@ -16,8 +16,6 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   
   <script src="https://accounts.google.com/gsi/client" async defer></script>
-  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-  <script src="https://cdn.jsdelivr.net/npm/appwrite@14.0.1"></script>
   
   <script type="application/ld+json">
   {
@@ -77,16 +75,6 @@
       position: fixed; top: 0; left: 0; width: 100%; height: 100%;
       background: var(--bg-main); z-index: 9999;
       display: none; flex-direction: column; align-items: center; justify-content: center;
-    }
-
-    .auth-box {
-      width: 90%;
-      max-width: 360px;
-      padding: 30px;
-      background: var(--header-bg);
-      border-radius: 16px;
-      border: 1px solid rgba(128,128,128,0.2);
-      box-shadow: 0 10px 30px rgba(0,0,0,0.3);
     }
 
     .sidebar {
@@ -213,72 +201,36 @@
       .sidebar.closed { transform: translateX(-100%); margin-right: 0; }
     }
   </style>
+  
+  <script src="https://cdn.jsdelivr.net/npm/appwrite@14.0.1"></script>
 </head>
 
 <body class="dark-theme"> 
 
 <div id="loginOverlay">
-  <div class="auth-box">
-    <h2 style="color: var(--text-color); text-align: center; margin-top: 0; margin-bottom: 24px;">Expoloom AI</h2>
-    
-    <div id="view-signin" style="display: block;">
-      
-      <div id="g_id_onload"
-           data-client_id="410619258030-6oht0c2kjpqeqbk7gd2np0mdpst9sjmi.apps.googleusercontent.com" 
-           data-context="signin"
-           data-ux_mode="popup"
-           data-callback="handleCredentialResponse"
-           data-auto_prompt="false">
-      </div>
-      <div class="g_id_signin"
-           data-type="standard"
-           data-shape="rectangular"
-           data-theme="outline"
-           data-text="signin_with"
-           data-size="large"
-           data-logo_alignment="left"
-           style="display: flex; justify-content: center; margin-bottom: 20px;">
-      </div>
+  <h2 style="color: var(--text-color); margin-bottom: 20px;">Welcome to Expoloom AI</h2>
+  <div id="g_id_onload"
+       data-client_id="410619258030-6oht0c2kjpqeqbk7gd2np0mdpst9sjmi.apps.googleusercontent.com" 
+       data-context="signin"
+       data-ux_mode="popup"
+       data-callback="handleCredentialResponse"
+       data-auto_prompt="false">
+  </div>
+  <div class="g_id_signin"
+       data-type="standard"
+       data-shape="rectangular"
+       data-theme="outline"
+       data-text="signin_with"
+       data-size="large"
+       data-logo_alignment="left"
+       style="margin-bottom: 25px;">
+  </div>
 
-      <div style="text-align: center; margin: 20px 0; color: #64748b; font-size: 13px; font-weight: 600;">OR SIGN IN WITH EMAIL</div>
-
-      <div style="display: flex; flex-direction: column; gap: 12px;">
-        <input type="email" id="loginEmail" placeholder="Email Address" class="custom-input" style="margin-top: 0;">
-        <input type="password" id="loginPassword" placeholder="Password" class="custom-input" style="margin-top: 0;">
-        
-        <button onclick="handleManualAuth('signin')" style="background: var(--accent-blue); color: white; padding: 12px; border: none; border-radius: 8px; font-weight: bold; cursor: pointer; font-size: 14px; transition: 0.2s; margin-top: 4px;">
-          Sign In
-        </button>
-      </div>
-
-      <p style="text-align: center; font-size: 13px; color: #94a3b8; margin-top: 20px; margin-bottom: 0;">
-        New to Expoloom? <a href="#" onclick="toggleAuthPage('signup')" style="color: var(--accent-blue); text-decoration: none; font-weight: 600;">Create an account</a>
-      </p>
-    </div>
-
-    <div id="view-signup" style="display: none;">
-      
-      <div style="display: flex; flex-direction: column; gap: 12px;">
-        <input type="text" id="registerName" placeholder="Full Name" class="custom-input" style="margin-top: 0;">
-        <input type="email" id="registerEmail" placeholder="Email Address" class="custom-input" style="margin-top: 0;">
-        <input type="password" id="registerPassword" placeholder="Create Password" class="custom-input" style="margin-top: 0;">
-        
-        <button onclick="handleManualAuth('signup')" style="background: #10b981; color: white; padding: 12px; border: none; border-radius: 8px; font-weight: bold; cursor: pointer; font-size: 14px; transition: 0.2s; margin-top: 4px;">
-          Create Account
-        </button>
-      </div>
-
-      <p style="text-align: center; font-size: 13px; color: #94a3b8; margin-top: 20px; margin-bottom: 0;">
-        Already have an account? <a href="#" onclick="toggleAuthPage('signin')" style="color: #10b981; text-decoration: none; font-weight: 600;">Sign In here</a>
-      </p>
-    </div>
-
-    <div style="font-size: 12px; color: #64748b; text-align: center; line-height: 1.5; margin-top: 25px;">
-      By continuing, you agree to our <br>
-      <a href="/policies.html" style="color: var(--accent-blue); text-decoration: none; font-weight: 600;">Terms of Service</a> 
-      and 
-      <a href="/policies.html" style="color: var(--accent-blue); text-decoration: none; font-weight: 600;">Privacy Policy</a>.
-    </div>
+  <div style="font-size: 13px; color: #64748b; text-align: center; line-height: 1.6; max-width: 280px; margin-top: 15px; font-family: Arial, sans-serif;">
+    By logging in, you agree to our <br>
+    <a href="/policies.html" style="color: #2563eb; text-decoration: none; font-weight: 600;">Terms of Service</a> 
+    and 
+    <a href="/policies.html" style="color: #2563eb; text-decoration: none; font-weight: 600;">Privacy Policy</a>.
   </div>
 </div>
 
@@ -425,62 +377,6 @@
 </div>
 
 <script>
-// --- SUPABASE SETUP FOR EMAIL AUTH ---
-const SUPABASE_URL = "https://wcrtftqldlqvybwtlvim.supabase.co"; 
-const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6IndjcnRmdHFsZGxxdnlid3RsdmltIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzg5Nzk1MzIsImV4cCI6MjA5NDU1NTUzMn0.wChKXrrCIuNRxfs5o-mOx8cIHusTzAJhXSdRzqSTVTk";
-const supabase = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
-
-function toggleAuthPage(page) {
-  document.getElementById('view-signin').style.display = page === 'signin' ? 'block' : 'none';
-  document.getElementById('view-signup').style.display = page === 'signup' ? 'block' : 'none';
-}
-
-async function handleManualAuth(action) {
-  if (action === 'signup') {
-    const fullName = document.getElementById('registerName').value.trim();
-    const email = document.getElementById('registerEmail').value.trim();
-    const password = document.getElementById('registerPassword').value;
-
-    if (!email || !password) return alert("Please specify an email address and password.");
-
-    const { data, error } = await supabase.auth.signUp({
-      email: email,
-      password: password,
-      options: { data: { full_name: fullName || "New User" } }
-    });
-
-    if (error) {
-      alert("Signup failed: " + error.message);
-    } else {
-      alert("Account created successfully! You can now log in.");
-      toggleAuthPage('signin');
-    }
-  } else {
-    const email = document.getElementById('loginEmail').value.trim();
-    const password = document.getElementById('loginPassword').value;
-
-    if (!email || !password) return alert("Please type your email and password.");
-
-    const { data, error } = await supabase.auth.signInWithPassword({ email, password });
-    
-    if (error) {
-      alert("Login failed: " + error.message);
-    } else {
-      completeAuthSession(data.user);
-    }
-  }
-}
-
-function completeAuthSession(user) {
-  const userPayload = {
-     name: user.user_metadata?.full_name || user.email.split('@')[0],
-     email: user.email,
-     picture: user.user_metadata?.avatar_url || ''
-  };
-  localStorage.setItem("googleUser", JSON.stringify(userPayload));
-  applyUserData(userPayload);
-}
-
 // --- GOOGLE AUTHENTICATION LOGIC ---
 function decodeJwtResponse(token) {
     let base64Url = token.split('.')[1];
@@ -497,11 +393,14 @@ async function handleCredentialResponse(response) {
     applyUserData(responsePayload);
 
     try {
-        const supabaseSyncResponse = await fetch(`${SUPABASE_URL}/auth/v1/token?grant_type=id_token`, {
+        const supabaseUrl = "https://wcrtftqldlqvybwtlvim.supabase.co"; 
+        const supabaseAnonKey = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6IndjcnRmdHFsZGxxdnlid3RsdmltIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzg5Nzk1MzIsImV4cCI6MjA5NDU1NTUzMn0.wChKXrrCIuNRxfs5o-mOx8cIHusTzAJhXSdRzqSTVTk";
+
+        const supabaseSyncResponse = await fetch(`${supabaseUrl}/auth/v1/token?grant_type=id_token`, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
-                'apikey': SUPABASE_ANON_KEY
+                'apikey': supabaseAnonKey
             },
             body: JSON.stringify({
                 provider: 'google',
@@ -519,14 +418,12 @@ async function handleCredentialResponse(response) {
 
 function applyUserData(user) {
     document.getElementById("loginOverlay").style.display = "none";
-    document.getElementById("accountName").innerText = user.name || "User";
-    document.getElementById("accountEmail").innerText = user.email || "";
+    document.getElementById("accountName").innerText = user.name;
+    document.getElementById("accountEmail").innerText = user.email;
     
     const profileBtn = document.getElementById("userProfileBtn");
     if (user.picture) {
         profileBtn.innerHTML = `<img src="${user.picture}" style="width: 100%; height: 100%; border-radius: 50%; object-fit: cover;">`;
-    } else {
-        profileBtn.innerHTML = "👤";
     }
 
     currentUserEmail = user.email;
@@ -561,19 +458,6 @@ function signOutGoogle() {
     document.getElementById("loginOverlay").style.display = "flex";
     document.getElementById("accountPanel").style.display = "none";
     document.getElementById("userProfileBtn").innerHTML = "👤";
-    
-    // Clear the input fields for the email form
-    document.getElementById("loginEmail").value = "";
-    document.getElementById("loginPassword").value = "";
-    document.getElementById("registerEmail").value = "";
-    document.getElementById("registerPassword").value = "";
-    document.getElementById("registerName").value = "";
-    toggleAuthPage('signin');
-    
-    // Sign out from Supabase if active
-    if (typeof supabase !== 'undefined') {
-        supabase.auth.signOut().catch(e => console.log(e));
-    }
 
     if (unsubscribeRealtime) {
         unsubscribeRealtime();
