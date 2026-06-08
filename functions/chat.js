@@ -7,12 +7,24 @@ export async function onRequest(context) {
       headers: {
         "Access-Control-Allow-Origin": "*",
         "Access-Control-Allow-Methods": "POST, OPTIONS",
-        "Access-Control-Allow-Headers": "Content-Type",
+        "Access-Control-Allow-Headers": "Content-Type, Authorization",
       },
     });
   }
 
   try {
+    // --- SESSION AUTHORIZATION VALIDATION ---
+    const authHeader = request.headers.get("Authorization");
+    if (authHeader && env.SUPABASE_URL && env.SUPABASE_KEY) {
+      const token = authHeader.replace("Bearer ", "");
+      const verifyRes = await fetch(`${env.SUPABASE_URL}/auth/v1/user`, {
+        headers: { 'apikey': env.SUPABASE_KEY, 'Authorization': `Bearer ${token}` }
+      });
+      if (!verifyRes.ok) throw new Error("Unauthorized request. Please log in again.");
+    } else {
+      throw new Error("Missing authentication credentials.");
+    }
+
     const contentType = request.headers.get("content-type") || "";
     
     // NEW BLOCK: Detect Voice Recording and send to Groq Whisper API
