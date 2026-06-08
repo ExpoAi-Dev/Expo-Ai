@@ -3,26 +3,22 @@ export async function onRequest(context) {
   const { searchParams } = new URL(request.url);
   if (searchParams.get('key') !== env.ADMIN_KEY) return new Response("Denied", { status: 403 });
 
-  // Array of days for formatting references
   const days = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
 
   let todayTotal = 0;
   let monthTotal = 0;
   let deviceLogs = [];
   
-  // Tracking counters for the API Key usage
   let gemDataTotal = 0;
   let gDataTotal = 0;
   let imgDataTotal = 0; 
   
-  // Initialize graphs datasets with 0s
   let todayHourly = Array(24).fill(0);
   let monthlyDaily = Array(31).fill(0);
   let weekTotals = Array(7).fill(0);
   let weekHourly = Array(7).fill(0).map(() => Array(24).fill(0));
 
   try {
-    // 1. Fetch logs from Supabase
     const supabaseResponse = await fetch(
       `${env.SUPABASE_URL}/rest/v1/ai_usage_logs?select=created_at,device_name&order=id.desc&limit=5000`, 
       {
@@ -42,7 +38,6 @@ export async function onRequest(context) {
         }
     }
 
-    // 2. Exact IST millisecond mathematics (UTC + 5.5 hours)
     const istOffset = 5.5 * 60 * 60 * 1000;
     const nowUtc = new Date();
     const nowPatna = new Date(nowUtc.getTime() + istOffset);
@@ -54,26 +49,21 @@ export async function onRequest(context) {
     logs.forEach(log => {
       if (!log.created_at) return;
 
-      // ULTIMATE FIX: Cleanly parse ANY variant of standard or microsecond timestamps safely
       let cleanTimestamp = log.created_at.trim();
-      // If it contains spaces instead of 'T', fix it
       if (cleanTimestamp.includes(' ')) {
         cleanTimestamp = cleanTimestamp.replace(' ', 'T');
       }
       
-      // Ensure it evaluates as UTC if no offset zone is explicitly appended
       if (!cleanTimestamp.includes('Z') && !cleanTimestamp.includes('+') && !cleanTimestamp.includes('-')) {
         cleanTimestamp += 'Z';
       }
 
-      const logUtcDate = new Date(cleanTimestamp);
+      let logUtcDate = new Date(cleanTimestamp);
       
-      // If V8 engine still stumbles on timezone fractions, fallback to safe manual parts regex splitting
       if (isNaN(logUtcDate.getTime())) {
          const parts = cleanTimestamp.split(/[-T:.]/);
          if (parts.length >= 5) {
-            // Build absolute safe UTC date using individual timeline parts
-            const fallbackDate = new Date(Date.UTC(
+            logUtcDate = new Date(Date.UTC(
               parseInt(parts[0]), 
               parseInt(parts[1]) - 1, 
               parseInt(parts[2]), 
@@ -81,92 +71,115 @@ export async function onRequest(context) {
               parseInt(parts[4]), 
               parts[5] ? parseInt(parts[5]) : 0
             ));
-            if (!isNaN(fallbackDate.getTime())) {
-              processLogMetrics(fallbackDate, log);
-            }
          }
-      } else {
-         processLogMetrics(logUtcDate, log);
+      }
+
+      if (!isNaN(logUtcDate.getTime())) {
+         const pDate = new Date(logUtcDate.getTime() + istOffset);
+         const pYear = pDate.getUTCFullYear();
+         const pMonth = pDate.getUTCMonth();
+         const pDay = pDate.getUTCDate();
+         const pHour = pDate.getUTCHours();
+
+         if (log.device_name) {
+             if (log.device_name.includes('G Data')) {
+                 gDataTotal++;
+             } else if (log.device_name.includes('Gem Data')) {
+                 gemDataTotal++;
+             } else if (log.device_name.includes('Img Data')) {
+                 imgDataTotal++;
+             }
+         }
+
+         let pDayOfWeek = pDate.getUTCDay() - 1; 
+         if (pDayOfWeek === -1) pDayOfWeek = 6; 
+
+         if (pYear === currentYear && pMonth === currentMonth) {
+           monthTotal++;
+           if (pDay >= 1 && pDay <= 31) {
+             monthlyDaily[pDay - 1]++;
+           }
+
+           if (pDayOfWeek >= 0 && pDayOfWeek < 7) {
+             weekTotals[pDayOfWeek]++;
+             weekHourly[pDayOfWeek][pHour]++;
+           }
+
+           if (pDay === currentDay) {
+             todayTotal++;
+             todayHourly[pHour]++;
+
+             if (deviceLogs.length < 50) {
+               let hh = pHour % 12;
+               if (hh === 0) hh = 12;
+               const mm = String(pDate.getUTCMinutes()).padStart(2, '0');
+               const ss = String(pDate.getUTCSeconds()).padStart(2, '0');
+               const ampm = pHour >= 12 ? 'PM' : 'AM';
+               const timeFormatted = `${String(hh).padStart(2, '0')}:${mm}:${ss} ${ampm}`;
+
+               let dLeft = "Unknown Device";
+               let dRight = "Data Type";
+
+               if (log.device_name && log.device_name.includes(" | ")) {
+                   const stringParts = log.device_name.split(" | ");
+                   dLeft = stringParts[0].trim();
+                   dRight = stringParts[1].trim();
+               } else if (log.device_name) {
+                   dLeft = log.device_name;
+               }
+
+               deviceLogs.push({
+                 deviceLeft: dLeft,
+                 time: timeFormatted,
+                 deviceRight: dRight
+               });
+             }
+           }
+         }
       }
     });
-
-    // Helper metric compilation processor function 
-    function processLogMetrics(dateObj, log) {
-      // Shift data values to absolute Patna values safely via Unix Epoch Math
-      const pDate = new Date(dateObj.getTime() + istOffset);
-
-      const pYear = pDate.getUTCFullYear();
-      const pMonth = pDate.getUTCMonth();
-      const pDay = pDate.getUTCDate();
-      const pHour = pDate.getUTCHours();
-
-      // Count global API states
-      if (log.device_name) {
-          if (log.device_name.includes('G Data')) {
-              gDataTotal++;
-          } else if (log.device_name.includes('Gem Data')) {
-              gemDataTotal++;
-          } else if (log.device_name.includes('Img Data')) {
-              imgDataTotal++;
-          }
-      }
-
-      // Convert day index tracking mapping (0 = Sunday, 1 = Monday... -> 0 = Mon, 6 = Sun)
-      let pDayOfWeek = pDate.getUTCDay() - 1; 
-      if (pDayOfWeek === -1) pDayOfWeek = 6; 
-
-      // Check matching calendar parameters relative to Patna Local Time
-      if (pYear === currentYear && pMonth === currentMonth) {
-        monthTotal++;
-        if (pDay >= 1 && pDay <= 31) {
-          monthlyDaily[pDay - 1]++;
-        }
-
-        if (pDayOfWeek >= 0 && pDayOfWeek < 7) {
-          weekTotals[pDayOfWeek]++;
-          weekHourly[pDayOfWeek][pHour]++;
-        }
-
-        // Handle metrics specific to Today (Patna Time Context Match)
-        if (pDay === currentDay) {
-          todayTotal++;
-          todayHourly[pHour]++;
-
-          // Build exact 3-column formatting item sets up to 50 logs
-          if (deviceLogs.length < 50) {
-            // Safe manual time format fallback construction to prevent standard toLocaleTimeString lookup engine crashes
-            let hh = pHour % 12;
-            if (hh === 0) hh = 12;
-            const mm = String(pDate.getUTCMinutes()).padStart(2, '0');
-            const ss = String(pDate.getUTCSeconds()).padStart(2, '0');
-            const ampm = pHour >= 12 ? 'PM' : 'AM';
-            const timeFormatted = `${String(hh).padStart(2, '0')}:${mm}:${ss} ${ampm}`;
-
-            let dLeft = "Unknown Device";
-            let dRight = "Data Type";
-
-            // Parse "Device/OS | Tracker Key" and safely map down the divider line
-            if (log.device_name && log.device_name.includes(" | ")) {
-                const stringParts = log.device_name.split(" | ");
-                dLeft = stringParts[0].trim();
-                dRight = stringParts[1].trim();
-            } else if (log.device_name) {
-                dLeft = log.device_name;
-            }
-
-            deviceLogs.push({
-              deviceLeft: dLeft,
-              time: timeFormatted,
-              deviceRight: dRight
-            });
-          }
-        }
-      }
-    }
 
   } catch (err) {
     console.log("Supabase analytics processing error: ", err.message);
   }
+
+  // Generate logs rows safe from layout breaks
+  const renderedLogs = deviceLogs.length === 0 
+    ? `<div class="no-logs">No messages sent yet today</div>` 
+    : deviceLogs.map(log => `
+        <div class="log-item">
+            <span class="log-col log-left">${log.deviceLeft}</span>
+            <span class="log-col log-center">${log.time}</span>
+            <span class="log-col log-right">${log.deviceRight}</span>
+        </div>
+      `).join('');
+
+  // Generate weekly menus safe from execution breaks
+  const renderedWeekly = days.map((day, idx) => `
+    <div class="day-row" onclick="toggle('graph-${day}')">
+        <div class="day-flex"><span>${day}</span><span>${weekTotals[idx]}</span></div>
+        <div id="graph-${day}" class="day-graph-box" onclick="event.stopPropagation()">
+            <canvas id="chart-${day}"></canvas>
+        </div>
+    </div>
+  `).join('');
+
+  // Generate inline chart construction directives safe from compilation breaks
+  const renderedChartsJS = days.map((day, idx) => `
+    new Chart(document.getElementById('chart-${day}'), {
+        type: 'bar',
+        data: { 
+            labels: hours, 
+            datasets: [{ 
+                data: [${weekHourly[idx].join(',')}], 
+                backgroundColor: '#000', 
+                barThickness: 8, 
+                borderRadius: 4 
+            }] 
+        },
+        options: opt
+    });
+  `).join('\n');
 
   const htmlContent = `<!DOCTYPE html>
 <html lang="en">
@@ -185,8 +198,6 @@ export async function onRequest(context) {
         .day-row { padding: 12px 0; border-bottom: 1px solid #f0f0f0; cursor: pointer; }
         .day-flex { display: flex; justify-content: space-between; align-items: center; font-weight: 600; font-size: 16px; }
         .day-graph-box { display: none; height: 180px; margin-top: 10px; padding-top: 10px; }
-        
-        /* 3-Column Precise Row Alignment CSS */
         .logs-container { display: none; margin-top: 15px; border-top: 1px solid #eee; padding-top: 15px; max-height: 250px; overflow-y: auto; }
         .log-item { display: flex; justify-content: space-between; align-items: center; padding: 12px 5px; border-bottom: 1px solid #f5f5f5; font-size: 13px; font-weight: 600; }
         .log-col { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
@@ -230,15 +241,7 @@ export async function onRequest(context) {
         <h3>Live Device Activity (Patna Time)</h3>
         <div style="font-size: 13px; margin-top: 5px; color: #666;">Tap to see exact times & devices</div>
         <div id="liveLogs" class="logs-container" onclick="event.stopPropagation()">
-            ${deviceLogs.length === 0 ? `<div class="no-logs">No messages sent yet today</div>` : 
-                deviceLogs.map(log => `
-                    <div class="log-item">
-                        <span class="log-col log-left">${log.deviceLeft}</span>
-                        <span class="log-col log-center">${log.time}</span>
-                        <span class="log-col log-right">${log.deviceRight}</span>
-                    </div>
-                `).join('')
-            }
+            ${renderedLogs}
         </div>
     </div>
 
@@ -246,14 +249,7 @@ export async function onRequest(context) {
         <h3>Weekly Report</h3>
         <div style="font-size: 13px; margin-top: 5px; color: #666;">Tap for daily and hourly info</div>
         <div id="weeklyMenu" class="weekly-list" onclick="event.stopPropagation()">
-            ${days.map((day, idx) => `
-                <div class="day-row" onclick="toggle('graph-${day}')">
-                    <div class="day-flex"><span>${day}</span><span>${weekTotals[idx]}</span></div>
-                    <div id="graph-${day}" class="day-graph-box" onclick="event.stopPropagation()">
-                        <canvas id="chart-${day}"></canvas>
-                    </div>
-                </div>
-            `).join('')}
+            ${renderedWeekly}
         </div>
     </div>
 
@@ -299,9 +295,10 @@ export async function onRequest(context) {
             options: opt
         });
 
-        ${days.map((day, idx) => `
-            new Chart(document.getElementById('chart-${day}'), {
-                type: 'bar',
-                data: { 
-                    labels: hours, 
-                    datasets:
+        ${renderedChartsJS}
+    </script>
+</body>
+</html>`;
+
+  return new Response(htmlContent, { headers: { "Content-Type": "text/html; charset=utf-8" } });
+}
