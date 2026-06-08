@@ -54,15 +54,46 @@ export async function onRequest(context) {
     logs.forEach(log => {
       if (!log.created_at) return;
 
-      // FIX 1: Normalize PostgreSQL space-separated timestamp to compliant ISO-8601 string
-      const sanitizedIsoString = log.created_at.replace(' ', 'T');
-      const logUtcDate = new Date(sanitizedIsoString);
+      // ULTIMATE FIX: Cleanly parse ANY variant of standard or microsecond timestamps safely
+      let cleanTimestamp = log.created_at.trim();
+      // If it contains spaces instead of 'T', fix it
+      if (cleanTimestamp.includes(' ')) {
+        cleanTimestamp = cleanTimestamp.replace(' ', 'T');
+      }
       
-      // Secondary fallback check if string contains trailing offsets that confuse standard runtime wrappers
-      if (isNaN(logUtcDate.getTime())) return; 
+      // Ensure it evaluates as UTC if no offset zone is explicitly appended
+      if (!cleanTimestamp.includes('Z') && !cleanTimestamp.includes('+') && !cleanTimestamp.includes('-')) {
+        cleanTimestamp += 'Z';
+      }
 
+      const logUtcDate = new Date(cleanTimestamp);
+      
+      // If V8 engine still stumbles on timezone fractions, fallback to safe manual parts regex splitting
+      if (isNaN(logUtcDate.getTime())) {
+         const parts = cleanTimestamp.split(/[-T:.]/);
+         if (parts.length >= 5) {
+            // Build absolute safe UTC date using individual timeline parts
+            const fallbackDate = new Date(Date.UTC(
+              parseInt(parts[0]), 
+              parseInt(parts[1]) - 1, 
+              parseInt(parts[2]), 
+              parseInt(parts[3]), 
+              parseInt(parts[4]), 
+              parts[5] ? parseInt(parts[5]) : 0
+            ));
+            if (!isNaN(fallbackDate.getTime())) {
+              processLogMetrics(fallbackDate, log);
+            }
+         }
+      } else {
+         processLogMetrics(logUtcDate, log);
+      }
+    });
+
+    // Helper metric compilation processor function 
+    function processLogMetrics(dateObj, log) {
       // Shift data values to absolute Patna values safely via Unix Epoch Math
-      const pDate = new Date(logUtcDate.getTime() + istOffset);
+      const pDate = new Date(dateObj.getTime() + istOffset);
 
       const pYear = pDate.getUTCFullYear();
       const pMonth = pDate.getUTCMonth();
@@ -80,11 +111,11 @@ export async function onRequest(context) {
           }
       }
 
-      // Convert day index tracking mapping (0 = Mon, 6 = Sun)
+      // Convert day index tracking mapping (0 = Sunday, 1 = Monday... -> 0 = Mon, 6 = Sun)
       let pDayOfWeek = pDate.getUTCDay() - 1; 
       if (pDayOfWeek === -1) pDayOfWeek = 6; 
 
-      // FIX 2: Check matching calendar parameters relative to Patna Local Time
+      // Check matching calendar parameters relative to Patna Local Time
       if (pYear === currentYear && pMonth === currentMonth) {
         monthTotal++;
         if (pDay >= 1 && pDay <= 31) {
@@ -103,18 +134,18 @@ export async function onRequest(context) {
 
           // Build exact 3-column formatting item sets up to 50 logs
           if (deviceLogs.length < 50) {
-            let timeFormatted = logUtcDate.toLocaleTimeString('en-IN', {
-              hour: '2-digit',
-              minute: '2-digit',
-              second: '2-digit',
-              hour12: true,
-              timeZone: 'Asia/Kolkata'
-            });
+            // Safe manual time format fallback construction to prevent standard toLocaleTimeString lookup engine crashes
+            let hh = pHour % 12;
+            if (hh === 0) hh = 12;
+            const mm = String(pDate.getUTCMinutes()).padStart(2, '0');
+            const ss = String(pDate.getUTCSeconds()).padStart(2, '0');
+            const ampm = pHour >= 12 ? 'PM' : 'AM';
+            const timeFormatted = `${String(hh).padStart(2, '0')}:${mm}:${ss} ${ampm}`;
 
             let dLeft = "Unknown Device";
             let dRight = "Data Type";
 
-            // FIX 3: Parse "Device/OS | Tracker Key" and safely map down the divider line
+            // Parse "Device/OS | Tracker Key" and safely map down the divider line
             if (log.device_name && log.device_name.includes(" | ")) {
                 const stringParts = log.device_name.split(" | ");
                 dLeft = stringParts[0].trim();
@@ -131,7 +162,7 @@ export async function onRequest(context) {
           }
         }
       }
-    });
+    }
 
   } catch (err) {
     console.log("Supabase analytics processing error: ", err.message);
@@ -273,19 +304,4 @@ export async function onRequest(context) {
                 type: 'bar',
                 data: { 
                     labels: hours, 
-                    datasets: [{ 
-                        data: [${weekHourly[idx].join(',')}], 
-                        backgroundColor: '#000', 
-                        barThickness: 8, 
-                        borderRadius: 4 
-                    }] 
-                },
-                options: opt
-            });
-        `).join('')}
-    </script>
-</body>
-</html>`;
-
-  return new Response(htmlContent, { headers: { "Content-Type": "text/html; charset=utf-8" } });
-}
+                    datasets:
