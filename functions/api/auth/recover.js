@@ -17,7 +17,7 @@ export async function onRequest(context) {
       },
       body: JSON.stringify({
         email: email,
-        redirectTo: `${origin}/reset-password` 
+        redirectTo: `${origin}/reset-password.html` 
       })
     });
 
