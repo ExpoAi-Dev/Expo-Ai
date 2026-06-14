@@ -36,8 +36,10 @@
     .primary-btn:disabled { opacity: 0.55; cursor: not-allowed; }
     .divider { display: flex; align-items: center; gap: 12px; margin-bottom: 20px; color: var(--muted); font-size: 12px; font-weight: 500; letter-spacing: 0.5px; text-transform: uppercase; }
     .divider::before, .divider::after { content: ''; flex: 1; height: 1px; background: var(--border); }
+    
+    /* Removed the broken 100% width rule here */
     .google-wrap { display: flex; justify-content: center; margin-bottom: 20px; }
-    .google-wrap > div { width: 100% !important; }
+    
     .links { text-align: center; font-size: 13.5px; color: var(--muted); }
     .links a { color: var(--accent); text-decoration: none; font-weight: 600; }
     .links a:hover { color: var(--accent-hi); text-decoration: underline; }
@@ -89,11 +91,11 @@
   <div class="google-wrap">
     <div class="g_id_signin"
          data-type="standard"
-         data-shape="pill"
+         data-shape="rectangular"
          data-theme="filled_black"
          data-text="signin_with"
          data-size="large"
-         data-logo_alignment="left"
+         data-logo_alignment="center"
          data-width="328">
     </div>
   </div>
