@@ -34,7 +34,6 @@
     .divider { display:flex; align-items:center; gap:12px; margin-bottom:20px; color:var(--muted); font-size:12px; font-weight:500; letter-spacing:0.5px; text-transform:uppercase; }
     .divider::before,.divider::after { content:''; flex:1; height:1px; background:var(--border); }
     .google-wrap { display:flex; justify-content:center; margin-bottom:20px; }
-    .google-wrap > div { width:100% !important; }
     .links { text-align:center; font-size:13.5px; color:var(--muted); }
     .links a { color:var(--accent); text-decoration:none; font-weight:600; }
     .links a:hover { color:var(--accent-hi); text-decoration:underline; }
@@ -105,15 +104,24 @@
 
   function updateStrength(val) {
     const fill = document.getElementById('strengthFill');
+    if (val.length === 0) {
+      fill.style.width = '0%';
+      return;
+    }
+    
     let score = 0;
     if (val.length >= 8) score++;
     if (/[A-Z]/.test(val)) score++;
     if (/[0-9]/.test(val)) score++;
     if (/[^A-Za-z0-9]/.test(val)) score++;
+    
+    // Optional improvement: ensure strength reads 0 if below your mandatory 8-character rule
+    if (val.length < 8) score = Math.min(score, 1); 
+
     const pct = (score / 4) * 100;
     const colors = ['#f06b6b','#f59e0b','#3b7ef8','#34d399'];
     fill.style.width = pct + '%';
-    fill.style.background = colors[score - 1] || 'transparent';
+    fill.style.background = colors[score - 1] || '#f06b6b';
   }
 
   async function signUpEmail() {
