@@ -3,28 +3,22 @@ export async function onRequest(context) {
   const { searchParams } = new URL(request.url);
   if (searchParams.get('key') !== env.ADMIN_KEY) return new Response("Denied", { status: 403 });
 
-  const days = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
+  const adminKey = searchParams.get('key');
 
-  let todayTotal = 0;
-  let monthTotal = 0;
-  let deviceLogs = [];
-  
-  let gemDataTotal = 0;
-  let gDataTotal = 0;
-  let imgDataTotal = 0; 
-  
-  let todayHourly = Array(24).fill(0);
-  let monthlyDaily = Array(31).fill(0);
-  let weekTotals = Array(7).fill(0);
-  let weekHourly = Array(7).fill(0).map(() => Array(24).fill(0));
+  const days = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
 
   let systemErrorMessage = "";
   let diagnosticMessage = "";
   let rawLogsCount = 0;
+  let rawLogs = [];
+
+  let gemDataTotal = 0;
+  let gDataTotal = 0;
+  let imgDataTotal = 0;
 
   try {
     const supabaseResponse = await fetch(
-      `${env.SUPABASE_URL}/rest/v1/ai_usage_logs?select=created_at,device_name&order=id.desc&limit=5000`, 
+      `${env.SUPABASE_URL}/rest/v1/ai_usage_logs?select=created_at,device_name&order=id.desc&limit=5000`,
       {
         method: 'GET',
         headers: {
@@ -39,126 +33,19 @@ export async function onRequest(context) {
       throw new Error(`Database connection failed (${supabaseResponse.status}): ${errText}`);
     }
 
-    let logs = [];
     const rawData = await supabaseResponse.json();
     if (Array.isArray(rawData)) {
-        logs = rawData;
-        rawLogsCount = logs.length;
+      rawLogs = rawData;
+      rawLogsCount = rawLogs.length;
     } else {
-        throw new Error("Invalid data format received from database (Expected an array).");
+      throw new Error("Invalid data format received from database (Expected an array).");
     }
 
-    const istOffset = 5.5 * 60 * 60 * 1000;
-    const nowUtc = new Date();
-    const nowPatna = new Date(nowUtc.getTime() + istOffset);
-    
-    const currentYear = nowPatna.getUTCFullYear();
-    const currentMonth = nowPatna.getUTCMonth(); 
-    const currentDay = nowPatna.getUTCDate();
-
-    logs.forEach(log => {
-      // Process device names globally so they always increment regardless of the row's date
+    rawLogs.forEach(log => {
       if (log.device_name) {
-          if (log.device_name.includes('G Data')) {
-              gDataTotal++;
-          } else if (log.device_name.includes('Gem Data')) {
-              gemDataTotal++;
-          } else if (log.device_name.includes('Img Data')) {
-              imgDataTotal++;
-          }
-      }
-
-      if (!log.created_at) return;
-
-      let cleanTimestamp = log.created_at.trim();
-      if (cleanTimestamp.includes(' ')) {
-        cleanTimestamp = cleanTimestamp.replace(' ', 'T');
-      }
-      
-      if (!cleanTimestamp.includes('Z') && !cleanTimestamp.includes('+') && !cleanTimestamp.includes('-')) {
-        cleanTimestamp += 'Z';
-      }
-
-      let logUtcDate = new Date(cleanTimestamp);
-      
-      if (isNaN(logUtcDate.getTime())) {
-         const parts = cleanTimestamp.split(/[-T:.]/);
-         if (parts.length >= 5) {
-            logUtcDate = new Date(Date.UTC(
-              parseInt(parts[0]), 
-              parseInt(parts[1]) - 1, 
-              parseInt(parts[2]), 
-              parseInt(parts[3]), 
-              parseInt(parts[4]), 
-              parts[5] ? parseInt(parts[5]) : 0
-            ));
-         }
-      }
-
-      // If it's a valid date, calculate graphs. If validation fails, match it to totals anyway.
-      if (!isNaN(logUtcDate.getTime())) {
-         const pDate = new Date(logUtcDate.getTime() + istOffset);
-         const pYear = pDate.getUTCFullYear();
-         const pMonth = pDate.getUTCMonth();
-         const pDay = pDate.getUTCDate();
-         const pHour = pDate.getUTCHours();
-
-         let pDayOfWeek = pDate.getUTCDay() - 1; 
-         if (pDayOfWeek === -1) pDayOfWeek = 6; 
-
-         // Track monthly graph distribution safely
-         if (pDay >= 1 && pDay <= 31) {
-           monthlyDaily[pDay - 1]++;
-         }
-
-         // Track weekly report structure distribution
-         if (pDayOfWeek >= 0 && pDayOfWeek < 7) {
-           weekTotals[pDayOfWeek]++;
-           weekHourly[pDayOfWeek][pHour]++;
-         }
-
-         // Global counts increments
-         monthTotal++;
-         todayTotal++; 
-         todayHourly[pHour]++;
-
-         // Append directly to live visual activity window
-         if (deviceLogs.length < 50) {
-           let hh = pHour % 12;
-           if (hh === 0) hh = 12;
-           const mm = String(pDate.getUTCMinutes()).padStart(2, '0');
-           const ss = String(pDate.getUTCSeconds()).padStart(2, '0');
-           const ampm = pHour >= 12 ? 'PM' : 'AM';
-           const timeFormatted = `${String(hh).padStart(2, '0')}:${mm}:${ss} ${ampm}`;
-
-           let dLeft = "Unknown Device";
-           let dRight = "Data Type";
-
-           if (log.device_name && log.device_name.includes(" | ")) {
-               const stringParts = log.device_name.split(" | ");
-               dLeft = stringParts[0].trim();
-               dRight = stringParts[1].trim();
-           } else if (log.device_name) {
-               dLeft = log.device_name;
-           }
-
-           deviceLogs.push({
-             deviceLeft: dLeft,
-             time: timeFormatted,
-             deviceRight: dRight
-           });
-         }
-      } else {
-         // Fallback counter logic for unparseable date patterns to preserve integrity
-         monthTotal++;
-         todayTotal++;
-         if (deviceLogs.length < 50) {
-            deviceLogs.push({
-              deviceLeft: log.device_name || "Unknown Device",
-              time: "Recent Entry",
-              deviceRight: "Data Sync"
-            });
-         }
+        if (log.device_name.includes('G Data')) gDataTotal++;
+        else if (log.device_name.includes('Gem Data')) gemDataTotal++;
+        else if (log.device_name.includes('Img Data')) imgDataTotal++;
       }
     });
 
@@ -170,51 +57,18 @@ export async function onRequest(context) {
     systemErrorMessage = err.message;
   }
 
-  const renderedLogs = deviceLogs.length === 0 
-    ? `<div class="no-logs">No messages sent yet today</div>` 
-    : deviceLogs.map(log => `
-        <div class="log-item">
-            <span class="log-col log-left">${log.deviceLeft}</span>
-            <span class="log-col log-center">${log.time}</span>
-            <span class="log-col log-right">${log.deviceRight}</span>
-        </div>
-      `).join('');
-
-  const renderedWeekly = days.map((day, idx) => `
-    <div class="day-row" onclick="toggle('graph-${day}')">
-        <div class="day-flex"><span>${day}</span><span>${weekTotals[idx]}</span></div>
-        <div id="graph-${day}" class="day-graph-box" onclick="event.stopPropagation()">
-            <canvas id="chart-${day}"></canvas>
-        </div>
-    </div>
-  `).join('');
-
-  const renderedChartsJS = days.map((day, idx) => `
-    new Chart(document.getElementById('chart-${day}'), {
-        type: 'bar',
-        data: { 
-            labels: hours, 
-            datasets: [{ 
-                data: [${weekHourly[idx].join(',')}], 
-                backgroundColor: '#000', 
-                barThickness: 8, 
-                borderRadius: 4 
-            }] 
-        },
-        options: opt
-    });
-  `).join('\n');
-
   let noticeHTML = '';
   if (systemErrorMessage) {
-    noticeHTML = `<div style="background-color: #fef2f2; border-left: 4px solid #ef4444; color: #991b1b; padding: 15px; margin-bottom: 20px; border-radius: 4px; font-size: 14px; word-wrap: break-word;">
+    noticeHTML = `<div style="background-color:#fef2f2;border-left:4px solid #ef4444;color:#991b1b;padding:15px;margin-bottom:20px;border-radius:4px;font-size:14px;word-wrap:break-word;">
                    <strong>⚠️ Critical System Error:</strong> ${systemErrorMessage}
                  </div>`;
   } else if (diagnosticMessage) {
-    noticeHTML = `<div style="background-color: #fefcbf; border-left: 4px solid #ecc94b; color: #744210; padding: 15px; margin-bottom: 20px; border-radius: 4px; font-size: 14px; line-height: 1.5;">
+    noticeHTML = `<div style="background-color:#fefcbf;border-left:4px solid #ecc94b;color:#744210;padding:15px;margin-bottom:20px;border-radius:4px;font-size:14px;line-height:1.5;">
                    <strong>ℹ️ Diagnostic Report:</strong> ${diagnosticMessage}
                  </div>`;
   }
+
+  const logsJson = JSON.stringify(rawLogs);
 
   const htmlContent = `<!DOCTYPE html>
 <html lang="en">
@@ -224,6 +78,7 @@ export async function onRequest(context) {
     <title>Expoloom AI Insights</title>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
+        * { box-sizing: border-box; }
         body { font-family: -apple-system, sans-serif; padding: 15px; background: #fff; color: #000; -webkit-tap-highlight-color: transparent; }
         .card { border: 1.5px solid #000; padding: 20px; border-radius: 18px; margin-bottom: 15px; cursor: pointer; }
         h3 { margin: 0; font-size: 11px; text-transform: uppercase; color: #888; font-weight: 700; letter-spacing: 1px; }
@@ -240,99 +95,477 @@ export async function onRequest(context) {
         .log-center { text-align: center; color: #000; font-weight: 700; }
         .log-right { text-align: right; color: #2563eb; font-weight: 700; }
         .no-logs { text-align: center; color: #999; padding: 20px 0; font-size: 14px; }
+
+        /* Timezone button */
+        #tzBtn {
+            position: fixed;
+            top: 15px;
+            right: 15px;
+            background: #000;
+            color: #fff;
+            border: none;
+            border-radius: 50px;
+            padding: 10px 16px;
+            font-size: 13px;
+            font-weight: 700;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            z-index: 999;
+            box-shadow: 0 2px 12px rgba(0,0,0,0.18);
+        }
+        #tzBtn svg { width: 15px; height: 15px; fill: #fff; }
+
+        /* Timezone modal overlay */
+        #tzOverlay {
+            display: none;
+            position: fixed;
+            inset: 0;
+            background: rgba(0,0,0,0.45);
+            z-index: 1000;
+            align-items: flex-end;
+            justify-content: center;
+        }
+        #tzOverlay.open { display: flex; }
+        #tzPanel {
+            background: #fff;
+            width: 100%;
+            max-width: 480px;
+            border-radius: 22px 22px 0 0;
+            padding: 24px 20px 36px;
+            max-height: 80vh;
+            display: flex;
+            flex-direction: column;
+            animation: slideUp 0.25s ease;
+        }
+        @keyframes slideUp { from { transform: translateY(100%); } to { transform: translateY(0); } }
+        #tzPanel h2 { font-size: 17px; font-weight: 700; margin: 0 0 14px; }
+        #tzSearch {
+            width: 100%;
+            padding: 12px 14px;
+            border: 1.5px solid #000;
+            border-radius: 12px;
+            font-size: 15px;
+            outline: none;
+            margin-bottom: 12px;
+        }
+        #tzList {
+            overflow-y: auto;
+            flex: 1;
+        }
+        .tz-item {
+            padding: 13px 10px;
+            border-bottom: 1px solid #f0f0f0;
+            cursor: pointer;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-size: 14px;
+            font-weight: 500;
+            border-radius: 8px;
+            transition: background 0.1s;
+        }
+        .tz-item:hover { background: #f5f5f5; }
+        .tz-item.selected { background: #000; color: #fff; border-radius: 10px; }
+        .tz-item.selected .tz-offset { color: #ccc; }
+        .tz-offset { font-size: 12px; color: #888; font-weight: 600; }
+        #tzCloseBtn {
+            background: none;
+            border: 1.5px solid #000;
+            border-radius: 12px;
+            padding: 12px;
+            font-size: 14px;
+            font-weight: 700;
+            cursor: pointer;
+            margin-top: 14px;
+            width: 100%;
+        }
+        #currentTzLabel {
+            font-size: 11px;
+            color: #888;
+            margin-bottom: 2px;
+            padding-left: 5px;
+        }
     </style>
 </head>
 <body>
     ${noticeHTML}
 
-    <h1 style="font-size: 24px; margin-bottom: 25px; padding-left: 5px;">Expoloom AI Insights</h1>
+    <!-- Timezone Selector Button -->
+    <button id="tzBtn" onclick="openTz()">
+        <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+            <path d="M12 2C6.477 2 2 6.477 2 12s4.477 10 10 10 10-4.477 10-10S17.523 2 12 2zm0 18c-4.418 0-8-3.582-8-8s3.582-8 8-8 8 3.582 8 8-3.582 8-8 8zm.5-13H11v6l5.25 3.15.75-1.23-4.5-2.67V7z"/>
+        </svg>
+        <span id="tzBtnLabel">Timezone</span>
+    </button>
 
-    <div style="display: flex; gap: 15px; margin-bottom: 15px;">
-        <div class="card" style="flex: 1; margin-bottom: 0; cursor: default;">
-            <h3>Gem Data</h3>
-            <div class="count" style="font-size: 28px; color: #2563eb;">${gemDataTotal}</div>
-        </div>
-        <div class="card" style="flex: 1; margin-bottom: 0; cursor: default;">
-            <h3>G Data</h3>
-            <div class="count" style="font-size: 28px; color: #ef4444;">${gDataTotal}</div>
+    <!-- Timezone Modal -->
+    <div id="tzOverlay" onclick="handleOverlayClick(event)">
+        <div id="tzPanel">
+            <h2>🌍 Select Your Timezone</h2>
+            <input id="tzSearch" type="text" placeholder="Search country or city..." oninput="filterTz(this.value)" autocomplete="off" />
+            <div id="tzList"></div>
+            <button id="tzCloseBtn" onclick="closeTz()">Done</button>
         </div>
     </div>
 
-    <div style="display: flex; gap: 15px; margin-bottom: 15px;">
-        <div class="card" style="flex: 1; margin-bottom: 0; cursor: default;">
-            <h3>Img Data</h3>
-            <div class="count" style="font-size: 28px; color: #10b981;">${imgDataTotal}</div>
+    <div id="currentTzLabel">Showing time in: <strong id="activeTzName">IST (UTC+5:30)</strong></div>
+    <h1 style="font-size:24px;margin-bottom:25px;padding-left:5px;">Expoloom AI Insights</h1>
+
+    <div style="display:flex;gap:15px;margin-bottom:15px;">
+        <div class="card" style="flex:1;margin-bottom:0;cursor:default;">
+            <h3>Gem Data</h3>
+            <div class="count" style="font-size:28px;color:#2563eb;">${gemDataTotal}</div>
         </div>
-        <div style="flex: 1;"></div>
+        <div class="card" style="flex:1;margin-bottom:0;cursor:default;">
+            <h3>G Data</h3>
+            <div class="count" style="font-size:28px;color:#ef4444;">${gDataTotal}</div>
+        </div>
+    </div>
+
+    <div style="display:flex;gap:15px;margin-bottom:15px;">
+        <div class="card" style="flex:1;margin-bottom:0;cursor:default;">
+            <h3>Img Data</h3>
+            <div class="count" style="font-size:28px;color:#10b981;">${imgDataTotal}</div>
+        </div>
+        <div style="flex:1;"></div>
     </div>
 
     <div class="card" onclick="toggle('todayGraph')">
         <h3>Today's Usage</h3>
-        <div class="count">${todayTotal}</div>
+        <div class="count" id="todayCount">0</div>
         <div id="todayGraph" class="graph-container" onclick="event.stopPropagation()">
             <canvas id="todayChart"></canvas>
         </div>
     </div>
 
     <div class="card" onclick="toggle('liveLogs')">
-        <h3>Live Device Activity (Patna Time)</h3>
-        <div style="font-size: 13px; margin-top: 5px; color: #666;">Tap to see exact times & devices</div>
+        <h3>Live Device Activity</h3>
+        <div style="font-size:13px;margin-top:5px;color:#666;">Tap to see exact times & devices</div>
         <div id="liveLogs" class="logs-container" onclick="event.stopPropagation()">
-            ${renderedLogs}
+            <div id="logsInner"></div>
         </div>
     </div>
 
     <div class="card" onclick="toggle('weeklyMenu')">
         <h3>Weekly Report</h3>
-        <div style="font-size: 13px; margin-top: 5px; color: #666;">Tap for daily and hourly info</div>
+        <div style="font-size:13px;margin-top:5px;color:#666;">Tap for daily and hourly info</div>
         <div id="weeklyMenu" class="weekly-list" onclick="event.stopPropagation()">
-            ${renderedWeekly}
+            <div id="weeklyInner"></div>
         </div>
     </div>
 
     <div class="card" onclick="toggle('monthGraph')">
         <h3>Monthly Total</h3>
-        <div class="count">${monthTotal}</div>
+        <div class="count" id="monthCount">0</div>
         <div id="monthGraph" class="graph-container" onclick="event.stopPropagation()">
             <canvas id="monthChart"></canvas>
         </div>
     </div>
 
-    <a href="/admin" style="display:block; text-align:center; margin-top:40px; color:#bbb; text-decoration:none; font-size:13px; font-weight:600;">LOGOUT</a>
+    <a href="/admin" style="display:block;text-align:center;margin-top:40px;color:#bbb;text-decoration:none;font-size:13px;font-weight:600;">LOGOUT</a>
 
     <script>
-        function toggle(id) {
-            const el = document.getElementById(id);
-            el.style.display = (el.style.display === 'block') ? 'none' : 'block';
+    // ── Raw log data from server ──────────────────────────────────────────────
+    const RAW_LOGS = ${logsJson};
+
+    // ── Timezone definitions ──────────────────────────────────────────────────
+    const TIMEZONES = [
+      { name: "IST — India", city: "Mumbai / New Delhi", offset: 5.5 },
+      { name: "UTC — Universal Time", city: "Reykjavik / Accra", offset: 0 },
+      { name: "GMT — UK", city: "London", offset: 0 },
+      { name: "CET — Central Europe", city: "Paris / Berlin / Rome", offset: 1 },
+      { name: "EET — Eastern Europe", city: "Cairo / Athens / Helsinki", offset: 2 },
+      { name: "MSK — Moscow", city: "Moscow / Istanbul", offset: 3 },
+      { name: "GST — Gulf", city: "Dubai / Abu Dhabi", offset: 4 },
+      { name: "PKT — Pakistan", city: "Karachi / Islamabad", offset: 5 },
+      { name: "BST — Bangladesh", city: "Dhaka", offset: 6 },
+      { name: "ICT — Indochina", city: "Bangkok / Hanoi / Jakarta", offset: 7 },
+      { name: "CST — China / Philippines", city: "Beijing / Manila / Singapore", offset: 8 },
+      { name: "JST — Japan / Korea", city: "Tokyo / Seoul", offset: 9 },
+      { name: "AEST — Australia East", city: "Sydney / Melbourne", offset: 10 },
+      { name: "NZST — New Zealand", city: "Auckland / Wellington", offset: 12 },
+      { name: "AZOT — Azores", city: "Ponta Delgada", offset: -1 },
+      { name: "GST — South Georgia", city: "South Georgia Island", offset: -2 },
+      { name: "BRT — Brazil", city: "São Paulo / Brasília", offset: -3 },
+      { name: "AST — Atlantic", city: "Halifax / Puerto Rico", offset: -4 },
+      { name: "EST — US Eastern", city: "New York / Miami / Toronto", offset: -5 },
+      { name: "CST — US Central", city: "Chicago / Dallas / Mexico City", offset: -6 },
+      { name: "MST — US Mountain", city: "Denver / Phoenix", offset: -7 },
+      { name: "PST — US Pacific", city: "Los Angeles / Vancouver", offset: -8 },
+      { name: "AKST — Alaska", city: "Anchorage", offset: -9 },
+      { name: "HST — Hawaii", city: "Honolulu", offset: -10 },
+      { name: "SST — Samoa", city: "Pago Pago", offset: -11 },
+      { name: "LINT — Line Islands", city: "Kiribati", offset: 14 },
+      { name: "NPT — Nepal", city: "Kathmandu", offset: 5.75 },
+      { name: "MMT — Myanmar", city: "Yangon", offset: 6.5 },
+      { name: "CCT — Cocos Islands", city: "Cocos Islands", offset: 6.5 },
+      { name: "ACST — Australia Central", city: "Adelaide / Darwin", offset: 9.5 },
+      { name: "NFT — Norfolk Island", city: "Norfolk Island", offset: 11 },
+      { name: "FJT — Fiji", city: "Suva", offset: 12 },
+      { name: "CHAST — Chatham Islands", city: "Chatham Islands", offset: 12.75 },
+      { name: "TOT — Tonga", city: "Nuku'alofa", offset: 13 },
+      { name: "IRDT — Iran", city: "Tehran", offset: 3.5 },
+      { name: "AFT — Afghanistan", city: "Kabul", offset: 4.5 },
+      { name: "MVT — Maldives", city: "Malé", offset: 5 },
+      { name: "OMST — Omsk", city: "Omsk / Tashkent", offset: 6 },
+      { name: "KRAT — Krasnoyarsk", city: "Krasnoyarsk", offset: 7 },
+    ];
+
+    // ── State ─────────────────────────────────────────────────────────────────
+    let selectedOffset = 5.5; // default IST
+    let selectedTzName = "IST — India";
+    let todayChartInst = null;
+    let monthChartInst = null;
+    let weekChartInsts = {};
+    const days = ["Monday","Tuesday","Wednesday","Thursday","Friday","Saturday","Sunday"];
+
+    // ── Chart options ─────────────────────────────────────────────────────────
+    const opt = {
+        maintainAspectRatio: false,
+        plugins: { legend: { display: false } },
+        scales: {
+            y: { beginAtZero: true, grid: { color: '#f5f5f5' }, ticks: { color: '#ccc', font: { size: 10 }, stepSize: 1 } },
+            x: { grid: { display: false }, ticks: { color: '#999', font: { size: 10 }, maxRotation: 0 } }
         }
+    };
+    const hours = ["12a","1","2","3","4","5","6","7","8","9","10","11","12p","1","2","3","4","5","6","7","8","9","10","11"];
 
-        const opt = {
-            maintainAspectRatio: false,
-            plugins: { legend: { display: false } },
-            scales: { 
-                y: { beginAtZero: true, grid: { color: '#f5f5f5' }, ticks: { color: '#ccc', font: { size: 10 }, stepSize: 1 } },
-                x: { grid: { display: false }, ticks: { color: '#999', font: { size: 10 }, maxRotation: 0 } }
+    // ── Load saved timezone from localStorage ────────────────────────────────
+    function loadSavedTz() {
+        const saved = localStorage.getItem('adminTzOffset');
+        const savedName = localStorage.getItem('adminTzName');
+        if (saved !== null) {
+            selectedOffset = parseFloat(saved);
+            selectedTzName = savedName || selectedTzName;
+        }
+        updateTzLabel();
+    }
+
+    function saveTz(offset, name) {
+        localStorage.setItem('adminTzOffset', offset);
+        localStorage.setItem('adminTzName', name);
+    }
+
+    function updateTzLabel() {
+        const sign = selectedOffset >= 0 ? '+' : '';
+        const fmtOffset = Number.isInteger(selectedOffset) ? selectedOffset : selectedOffset;
+        document.getElementById('activeTzName').textContent = selectedTzName + ' (UTC' + sign + fmtOffset + ')';
+        document.getElementById('tzBtnLabel').textContent = selectedTzName.split('—')[0].trim();
+    }
+
+    // ── Data processing ───────────────────────────────────────────────────────
+    function processLogs(offsetHours) {
+        const offsetMs = offsetHours * 60 * 60 * 1000;
+        const nowUtc = new Date();
+        const nowLocal = new Date(nowUtc.getTime() + offsetMs);
+
+        const currentYear = nowLocal.getUTCFullYear();
+        const currentMonth = nowLocal.getUTCMonth();
+        const currentDay = nowLocal.getUTCDate();
+
+        let todayTotal = 0;
+        let monthTotal = 0;
+        let deviceLogs = [];
+        let todayHourly = Array(24).fill(0);
+        let monthlyDaily = Array(31).fill(0);
+        let weekTotals = Array(7).fill(0);
+        let weekHourly = Array(7).fill(0).map(() => Array(24).fill(0));
+
+        RAW_LOGS.forEach(log => {
+            if (!log.created_at) return;
+
+            let cleanTimestamp = log.created_at.trim();
+            if (cleanTimestamp.includes(' ')) cleanTimestamp = cleanTimestamp.replace(' ', 'T');
+            if (!cleanTimestamp.includes('Z') && !cleanTimestamp.includes('+') && !cleanTimestamp.match(/-\\d{2}:\\d{2}$/)) cleanTimestamp += 'Z';
+
+            let logUtcDate = new Date(cleanTimestamp);
+            if (isNaN(logUtcDate.getTime())) {
+                const parts = cleanTimestamp.split(/[-T:.]/);
+                if (parts.length >= 5) {
+                    logUtcDate = new Date(Date.UTC(
+                        parseInt(parts[0]), parseInt(parts[1]) - 1, parseInt(parts[2]),
+                        parseInt(parts[3]), parseInt(parts[4]), parts[5] ? parseInt(parts[5]) : 0
+                    ));
+                }
             }
-        };
 
-        const hours = [
-            "12a", "1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11",
-            "12p", "1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11"
-        ];
+            if (!isNaN(logUtcDate.getTime())) {
+                const pDate = new Date(logUtcDate.getTime() + offsetMs);
+                const pYear = pDate.getUTCFullYear();
+                const pMonth = pDate.getUTCMonth();
+                const pDay = pDate.getUTCDate();
+                const pHour = pDate.getUTCHours();
+                let pDayOfWeek = pDate.getUTCDay() - 1;
+                if (pDayOfWeek === -1) pDayOfWeek = 6;
 
-        new Chart(document.getElementById('todayChart'), {
+                if (pDay >= 1 && pDay <= 31) monthlyDaily[pDay - 1]++;
+                if (pDayOfWeek >= 0 && pDayOfWeek < 7) {
+                    weekTotals[pDayOfWeek]++;
+                    weekHourly[pDayOfWeek][pHour]++;
+                }
+
+                monthTotal++;
+                todayTotal++;
+                todayHourly[pHour]++;
+
+                if (deviceLogs.length < 50) {
+                    let hh = pHour % 12;
+                    if (hh === 0) hh = 12;
+                    const mm = String(pDate.getUTCMinutes()).padStart(2, '0');
+                    const ss = String(pDate.getUTCSeconds()).padStart(2, '0');
+                    const ampm = pHour >= 12 ? 'PM' : 'AM';
+                    const timeFormatted = String(hh).padStart(2,'0') + ':' + mm + ':' + ss + ' ' + ampm;
+
+                    let dLeft = "Unknown Device", dRight = "Data Type";
+                    if (log.device_name && log.device_name.includes(" | ")) {
+                        const parts2 = log.device_name.split(" | ");
+                        dLeft = parts2[0].trim();
+                        dRight = parts2[1].trim();
+                    } else if (log.device_name) {
+                        dLeft = log.device_name;
+                    }
+                    deviceLogs.push({ deviceLeft: dLeft, time: timeFormatted, deviceRight: dRight });
+                }
+            } else {
+                monthTotal++;
+                todayTotal++;
+                if (deviceLogs.length < 50) {
+                    deviceLogs.push({ deviceLeft: log.device_name || "Unknown Device", time: "Recent Entry", deviceRight: "Data Sync" });
+                }
+            }
+        });
+
+        return { todayTotal, monthTotal, deviceLogs, todayHourly, monthlyDaily, weekTotals, weekHourly };
+    }
+
+    // ── Render dashboard ──────────────────────────────────────────────────────
+    function renderDashboard(offset) {
+        const d = processLogs(offset);
+
+        document.getElementById('todayCount').textContent = d.todayTotal;
+        document.getElementById('monthCount').textContent = d.monthTotal;
+
+        // Logs
+        const logsHtml = d.deviceLogs.length === 0
+            ? '<div class="no-logs">No messages sent yet</div>'
+            : d.deviceLogs.map(l => \`
+                <div class="log-item">
+                    <span class="log-col log-left">\${l.deviceLeft}</span>
+                    <span class="log-col log-center">\${l.time}</span>
+                    <span class="log-col log-right">\${l.deviceRight}</span>
+                </div>\`).join('');
+        document.getElementById('logsInner').innerHTML = logsHtml;
+
+        // Weekly
+        const weeklyHtml = days.map((day, idx) => \`
+            <div class="day-row" onclick="toggleWeekDay('\${day}')">
+                <div class="day-flex"><span>\${day}</span><span>\${d.weekTotals[idx]}</span></div>
+                <div id="graph-\${day}" class="day-graph-box" onclick="event.stopPropagation()">
+                    <canvas id="chart-\${day}"></canvas>
+                </div>
+            </div>\`).join('');
+        document.getElementById('weeklyInner').innerHTML = weeklyHtml;
+
+        // Store weekly data for chart rendering on expand
+        window._weekHourly = d.weekHourly;
+
+        // Today chart
+        if (todayChartInst) todayChartInst.destroy();
+        todayChartInst = new Chart(document.getElementById('todayChart'), {
             type: 'bar',
-            data: { labels: hours, datasets: [{ data: [${todayHourly.join(',')}], backgroundColor: '#000', barThickness: 8, borderRadius: 4 }] },
+            data: { labels: hours, datasets: [{ data: d.todayHourly, backgroundColor: '#000', barThickness: 8, borderRadius: 4 }] },
             options: opt
         });
 
-        new Chart(document.getElementById('monthChart'), {
+        // Month chart
+        if (monthChartInst) monthChartInst.destroy();
+        monthChartInst = new Chart(document.getElementById('monthChart'), {
             type: 'bar',
-            data: { labels: Array.from({length: 31}, (_, i) => i + 1), datasets: [{ data: [${monthlyDaily.join(',')}], backgroundColor: '#000', borderRadius: 2 }] },
+            data: { labels: Array.from({length: 31}, (_, i) => i + 1), datasets: [{ data: d.monthlyDaily, backgroundColor: '#000', borderRadius: 2 }] },
             options: opt
         });
 
-        ${renderedChartsJS}
+        // Destroy old week charts
+        Object.values(weekChartInsts).forEach(c => c.destroy());
+        weekChartInsts = {};
+    }
+
+    // ── Toggle helpers ────────────────────────────────────────────────────────
+    function toggle(id) {
+        const el = document.getElementById(id);
+        el.style.display = (el.style.display === 'block') ? 'none' : 'block';
+    }
+
+    function toggleWeekDay(day) {
+        const box = document.getElementById('graph-' + day);
+        const isOpen = box.style.display === 'block';
+        box.style.display = isOpen ? 'none' : 'block';
+        if (!isOpen && !weekChartInsts[day]) {
+            const idx = days.indexOf(day);
+            weekChartInsts[day] = new Chart(document.getElementById('chart-' + day), {
+                type: 'bar',
+                data: { labels: hours, datasets: [{ data: window._weekHourly[idx], backgroundColor: '#000', barThickness: 8, borderRadius: 4 }] },
+                options: opt
+            });
+        }
+    }
+
+    // ── Timezone modal ────────────────────────────────────────────────────────
+    let filteredTzList = [...TIMEZONES];
+
+    function renderTzList(list) {
+        const container = document.getElementById('tzList');
+        container.innerHTML = list.map((tz, i) => {
+            const sign = tz.offset >= 0 ? '+' : '';
+            const isSelected = tz.offset === selectedOffset;
+            return \`<div class="tz-item \${isSelected ? 'selected' : ''}" onclick="selectTz(\${tz.offset}, '\${tz.name.replace(/'/g,"\\\\'")}')">
+                <div>
+                    <div>\${tz.name}</div>
+                    <div style="font-size:12px;color:\${isSelected?'#ccc':'#aaa'};font-weight:400;margin-top:2px;">\${tz.city}</div>
+                </div>
+                <span class="tz-offset">UTC\${sign}\${tz.offset}</span>
+            </div>\`;
+        }).join('');
+    }
+
+    function filterTz(query) {
+        const q = query.toLowerCase();
+        filteredTzList = TIMEZONES.filter(tz =>
+            tz.name.toLowerCase().includes(q) || tz.city.toLowerCase().includes(q)
+        );
+        renderTzList(filteredTzList);
+    }
+
+    function selectTz(offset, name) {
+        selectedOffset = offset;
+        selectedTzName = name;
+        saveTz(offset, name);
+        updateTzLabel();
+        renderTzList(filteredTzList);
+        renderDashboard(offset);
+    }
+
+    function openTz() {
+        document.getElementById('tzSearch').value = '';
+        filteredTzList = [...TIMEZONES];
+        renderTzList(filteredTzList);
+        document.getElementById('tzOverlay').classList.add('open');
+        setTimeout(() => document.getElementById('tzSearch').focus(), 300);
+    }
+
+    function closeTz() {
+        document.getElementById('tzOverlay').classList.remove('open');
+    }
+
+    function handleOverlayClick(e) {
+        if (e.target === document.getElementById('tzOverlay')) closeTz();
+    }
+
+    // ── Init ──────────────────────────────────────────────────────────────────
+    loadSavedTz();
+    renderDashboard(selectedOffset);
     </script>
 </body>
 </html>`;
