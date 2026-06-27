@@ -165,6 +165,10 @@
 
   function finalizeLogin(sessionData) {
     localStorage.setItem("sb_access_token", sessionData.access_token);
+    // Save refresh token so we can silently renew the session after it expires
+    localStorage.setItem("sb_refresh_token", sessionData.refresh_token);
+    // Save expiry time (unix seconds) so we know when to refresh
+    localStorage.setItem("sb_expires_at", sessionData.expires_at || (Math.floor(Date.now() / 1000) + (sessionData.expires_in || 3600)));
     const userObj = {
         name: sessionData.user.user_metadata?.name || sessionData.user.user_metadata?.full_name || "User",
         email: sessionData.user.email,
