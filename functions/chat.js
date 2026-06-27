@@ -15,12 +15,16 @@ export async function onRequest(context) {
   try {
     // --- SESSION AUTHORIZATION VALIDATION ---
     const authHeader = request.headers.get("Authorization");
+    let userEmail = null;
     if (authHeader && env.SUPABASE_URL && env.SUPABASE_KEY) {
       const token = authHeader.replace("Bearer ", "");
       const verifyRes = await fetch(`${env.SUPABASE_URL}/auth/v1/user`, {
         headers: { 'apikey': env.SUPABASE_KEY, 'Authorization': `Bearer ${token}` }
       });
       if (!verifyRes.ok) throw new Error("Unauthorized request. Please log in again.");
+      // Capture the email so we can log it with the request
+      const userData = await verifyRes.json();
+      userEmail = userData?.email || null;
     } else {
       throw new Error("Missing authentication credentials.");
     }
@@ -201,7 +205,7 @@ export async function onRequest(context) {
               'Content-Type': 'application/json',
               'Prefer': 'return=minimal'
             },
-            body: JSON.stringify({ device_name: finalDeviceName })
+            body: JSON.stringify({ device_name: finalDeviceName, email: userEmail })
           }).catch(e => console.log("Supabase background log failed", e.message))
         );
       }
