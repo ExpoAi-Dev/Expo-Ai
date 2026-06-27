@@ -39,6 +39,10 @@ export async function onRequest(context) {
     } else if (action === "google") {
       supabaseEndpoint = `${env.SUPABASE_URL}/auth/v1/token?grant_type=id_token`;
       payload = { provider: 'google', id_token: token };
+    } else if (action === "refresh") {
+      // Silently renew an expired access token using the stored refresh token
+      supabaseEndpoint = `${env.SUPABASE_URL}/auth/v1/token?grant_type=refresh_token`;
+      payload = { refresh_token: token };
     } else {
       throw new Error("Invalid authentication action.");
     }
