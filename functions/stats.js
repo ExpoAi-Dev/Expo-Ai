@@ -95,8 +95,6 @@ export async function onRequest(context) {
         .log-center { text-align: center; color: #000; font-weight: 700; }
         .log-right { text-align: right; color: #2563eb; font-weight: 700; }
         .no-logs { text-align: center; color: #999; padding: 20px 0; font-size: 14px; }
-
-        /* Email accordion */
         .email-row { border: 1.5px solid #000; border-radius: 18px; margin-bottom: 10px; overflow: hidden; }
         .email-header { display: flex; align-items: center; padding: 16px 18px; cursor: pointer; gap: 12px; }
         .email-avatar { width: 34px; height: 34px; border-radius: 50%; background: #000; color: #fff; display: flex; align-items: center; justify-content: center; font-size: 13px; font-weight: 700; flex-shrink: 0; }
@@ -361,10 +359,12 @@ export async function onRequest(context) {
         grad.addColorStop(1, '#555');
         return grad;
     }
+    // interaction: mode:'index' + intersect:false = tooltip shows on tap anywhere, not just exact point
     function lineOpt(maxTicks) {
         return {
             maintainAspectRatio: false,
             animation: { duration: 600, easing: 'easeOutQuart' },
+            interaction: { mode: 'index', intersect: false },
             plugins: {
                 legend: { display: false },
                 tooltip: {
@@ -383,6 +383,7 @@ export async function onRequest(context) {
         return {
             maintainAspectRatio: false,
             animation: { duration: 700, easing: 'easeOutQuart' },
+            interaction: { mode: 'index', intersect: false },
             plugins: {
                 legend: { display: false },
                 tooltip: {
@@ -496,7 +497,6 @@ export async function onRequest(context) {
                     }
                     deviceLogs.push({ deviceLeft: dLeft, time: timeFormatted, deviceRight: dRight });
 
-                    // Email grouping
                     const em = log.email || 'unknown';
                     if (!emailMap[em]) emailMap[em] = { total: 0, logs: [] };
                     emailMap[em].total++;
