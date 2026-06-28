@@ -18,7 +18,7 @@ export async function onRequest(context) {
 
   try {
     const supabaseResponse = await fetch(
-      `${env.SUPABASE_URL}/rest/v1/ai_usage_logs?select=created_at,device_name&order=id.desc&limit=5000`,
+      `${env.SUPABASE_URL}/rest/v1/ai_usage_logs?select=created_at,device_name,email&order=id.desc&limit=5000`,
       {
         method: 'GET',
         headers: {
@@ -95,6 +95,24 @@ export async function onRequest(context) {
         .log-center { text-align: center; color: #000; font-weight: 700; }
         .log-right { text-align: right; color: #2563eb; font-weight: 700; }
         .no-logs { text-align: center; color: #999; padding: 20px 0; font-size: 14px; }
+
+        /* Email accordion */
+        .email-row { border: 1.5px solid #000; border-radius: 18px; margin-bottom: 10px; overflow: hidden; }
+        .email-header { display: flex; align-items: center; padding: 16px 18px; cursor: pointer; gap: 12px; }
+        .email-avatar { width: 34px; height: 34px; border-radius: 50%; background: #000; color: #fff; display: flex; align-items: center; justify-content: center; font-size: 13px; font-weight: 700; flex-shrink: 0; }
+        .email-info { flex: 1; min-width: 0; }
+        .email-addr { font-size: 14px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .email-meta { font-size: 12px; color: #888; margin-top: 2px; }
+        .req-badge { background: #000; color: #fff; font-size: 13px; font-weight: 700; padding: 4px 11px; border-radius: 999px; flex-shrink: 0; }
+        .email-chevron { width: 18px; height: 18px; flex-shrink: 0; stroke: #aaa; stroke-width: 2.5; fill: none; stroke-linecap: round; stroke-linejoin: round; transition: transform 0.25s ease; }
+        .email-row.open .email-chevron { transform: rotate(180deg); }
+        .email-detail { display: none; border-top: 1px solid #eee; padding: 0 18px; }
+        .email-row.open .email-detail { display: block; }
+        .email-log-item { display: flex; justify-content: space-between; align-items: center; padding: 10px 0; border-bottom: 1px solid #f5f5f5; font-size: 13px; font-weight: 600; }
+        .email-log-item:last-child { border-bottom: none; margin-bottom: 6px; }
+        .email-log-device { color: #555; flex: 1; }
+        .email-log-type { color: #2563eb; font-weight: 700; flex-shrink: 0; }
+        .email-log-time { color: #000; font-weight: 700; flex-shrink: 0; margin-left: 12px; }
 
         /* Timezone button */
         #tzBtn {
@@ -232,6 +250,12 @@ export async function onRequest(context) {
         <div style="flex:1;"></div>
     </div>
 
+    <div class="card" style="cursor:default;">
+        <h3>Requests by User</h3>
+        <div style="font-size:13px;margin-top:5px;margin-bottom:15px;color:#666;">Tap a row to see full details</div>
+        <div id="emailList"></div>
+    </div>
+
     <div class="card" onclick="toggle('todayGraph')">
         <h3>Today's Usage</h3>
         <div class="count" id="todayCount">0</div>
@@ -330,7 +354,6 @@ export async function onRequest(context) {
         grad.addColorStop(1, 'rgba(0,0,0,0)');
         return grad;
     }
-
     function makeBarGradient(canvas, h) {
         const ctx = canvas.getContext('2d');
         const grad = ctx.createLinearGradient(0, 0, 0, h);
@@ -338,71 +361,42 @@ export async function onRequest(context) {
         grad.addColorStop(1, '#555');
         return grad;
     }
-
-    function lineOpt(extraTicks) {
+    function lineOpt(maxTicks) {
         return {
             maintainAspectRatio: false,
             animation: { duration: 600, easing: 'easeOutQuart' },
             plugins: {
                 legend: { display: false },
                 tooltip: {
-                    backgroundColor: '#111',
-                    titleColor: '#fff',
-                    bodyColor: '#ccc',
-                    padding: 10,
-                    cornerRadius: 10,
-                    displayColors: false,
-                    callbacks: { title: items => items[0].label, label: item => item.raw + ' requests' }
+                    backgroundColor: '#111', titleColor: '#fff', bodyColor: '#ccc',
+                    padding: 10, cornerRadius: 10, displayColors: false,
+                    callbacks: { label: item => item.raw + ' requests' }
                 }
             },
             scales: {
-                y: {
-                    beginAtZero: true,
-                    grid: { color: 'rgba(0,0,0,0.05)', drawBorder: false },
-                    ticks: { color: '#bbb', font: { size: 10 }, stepSize: 1, maxTicksLimit: 5 },
-                    border: { display: false }
-                },
-                x: {
-                    grid: { display: false },
-                    ticks: { color: '#bbb', font: { size: 10 }, maxRotation: 0, ...(extraTicks || {}) },
-                    border: { display: false }
-                }
+                y: { beginAtZero: true, border: { display: false }, grid: { color: 'rgba(0,0,0,0.05)' }, ticks: { color: '#bbb', font: { size: 10 }, stepSize: 1, maxTicksLimit: 5 } },
+                x: { border: { display: false }, grid: { display: false }, ticks: { color: '#bbb', font: { size: 10 }, maxRotation: 0, maxTicksLimit: maxTicks || 12 } }
             }
         };
     }
-
-    function barOpt(extraTicks) {
+    function barOpt(maxTicks) {
         return {
             maintainAspectRatio: false,
             animation: { duration: 700, easing: 'easeOutQuart' },
             plugins: {
                 legend: { display: false },
                 tooltip: {
-                    backgroundColor: '#111',
-                    titleColor: '#fff',
-                    bodyColor: '#ccc',
-                    padding: 10,
-                    cornerRadius: 10,
-                    displayColors: false,
-                    callbacks: { title: items => items[0].label, label: item => item.raw + ' requests' }
+                    backgroundColor: '#111', titleColor: '#fff', bodyColor: '#ccc',
+                    padding: 10, cornerRadius: 10, displayColors: false,
+                    callbacks: { label: item => item.raw + ' requests' }
                 }
             },
             scales: {
-                y: {
-                    beginAtZero: true,
-                    grid: { color: 'rgba(0,0,0,0.05)', drawBorder: false },
-                    ticks: { color: '#bbb', font: { size: 10 }, stepSize: 1, maxTicksLimit: 5 },
-                    border: { display: false }
-                },
-                x: {
-                    grid: { display: false },
-                    ticks: { color: '#bbb', font: { size: 10 }, maxRotation: 0, ...(extraTicks || {}) },
-                    border: { display: false }
-                }
+                y: { beginAtZero: true, border: { display: false }, grid: { color: 'rgba(0,0,0,0.05)' }, ticks: { color: '#bbb', font: { size: 10 }, stepSize: 1, maxTicksLimit: 5 } },
+                x: { border: { display: false }, grid: { display: false }, ticks: { color: '#bbb', font: { size: 10 }, maxRotation: 0, maxTicksLimit: maxTicks || 16 } }
             }
         };
     }
-
     const hours = ["12a","1","2","3","4","5","6","7","8","9","10","11","12p","1","2","3","4","5","6","7","8","9","10","11"];
 
     // ── Load saved timezone from localStorage ────────────────────────────────
@@ -445,6 +439,7 @@ export async function onRequest(context) {
         let monthlyDaily = Array(31).fill(0);
         let weekTotals = Array(7).fill(0);
         let weekHourly = Array(7).fill(0).map(() => Array(24).fill(0));
+        let emailMap = {};
 
         RAW_LOGS.forEach(log => {
             if (!log.created_at) return;
@@ -500,6 +495,12 @@ export async function onRequest(context) {
                         dLeft = log.device_name;
                     }
                     deviceLogs.push({ deviceLeft: dLeft, time: timeFormatted, deviceRight: dRight });
+
+                    // Email grouping
+                    const em = log.email || 'unknown';
+                    if (!emailMap[em]) emailMap[em] = { total: 0, logs: [] };
+                    emailMap[em].total++;
+                    if (emailMap[em].logs.length < 100) emailMap[em].logs.push({ device: dLeft, type: dRight, time: timeFormatted });
                 }
             } else {
                 monthTotal++;
@@ -507,10 +508,13 @@ export async function onRequest(context) {
                 if (deviceLogs.length < 50) {
                     deviceLogs.push({ deviceLeft: log.device_name || "Unknown Device", time: "Recent Entry", deviceRight: "Data Sync" });
                 }
+                const em2 = log.email || 'unknown';
+                if (!emailMap[em2]) emailMap[em2] = { total: 0, logs: [] };
+                emailMap[em2].total++;
             }
         });
 
-        return { todayTotal, monthTotal, deviceLogs, todayHourly, monthlyDaily, weekTotals, weekHourly };
+        return { todayTotal, monthTotal, deviceLogs, todayHourly, monthlyDaily, weekTotals, weekHourly, emailMap };
     }
 
     // ── Render dashboard ──────────────────────────────────────────────────────
@@ -519,6 +523,37 @@ export async function onRequest(context) {
 
         document.getElementById('todayCount').textContent = d.todayTotal;
         document.getElementById('monthCount').textContent = d.monthTotal;
+
+        // Email accordion
+        const emailEntries = Object.entries(d.emailMap).sort((a, b) => b[1].total - a[1].total);
+        document.getElementById('emailList').innerHTML = emailEntries.length === 0
+            ? '<div class="no-logs">No user data yet</div>'
+            : emailEntries.map(([email, info], idx) => {
+                const initial = email === 'unknown' ? '?' : email[0].toUpperCase();
+                const display = email === 'unknown' ? 'Anonymous / Legacy' : email;
+                const short   = display.length > 30 ? display.substring(0, 28) + '…' : display;
+                const lastTime = info.logs[0] ? info.logs[0].time : '—';
+                const logsHtml = info.logs.map(l => \`
+                    <div class="email-log-item">
+                        <span class="email-log-device">\${l.device}</span>
+                        <span class="email-log-type">\${l.type}</span>
+                        <span class="email-log-time">\${l.time}</span>
+                    </div>\`).join('');
+                const moreNote = info.total > info.logs.length
+                    ? \`<div style="text-align:center;padding:8px 0 10px;font-size:12px;color:#999;">Showing \${info.logs.length} of \${info.total}</div>\` : '';
+                return \`<div class="email-row" id="erow-\${idx}">
+                    <div class="email-header" onclick="toggleEmail(\${idx})">
+                        <div class="email-avatar">\${initial}</div>
+                        <div class="email-info">
+                            <div class="email-addr" title="\${display}">\${short}</div>
+                            <div class="email-meta">Last: \${lastTime}</div>
+                        </div>
+                        <div class="req-badge">\${info.total}</div>
+                        <svg class="email-chevron" viewBox="0 0 24 24"><polyline points="6 9 12 15 18 9"/></svg>
+                    </div>
+                    <div class="email-detail" id="edetail-\${idx}">\${logsHtml}\${moreNote}</div>
+                </div>\`;
+            }).join('');
 
         // Logs
         const logsHtml = d.deviceLogs.length === 0
@@ -540,8 +575,6 @@ export async function onRequest(context) {
                 </div>
             </div>\`).join('');
         document.getElementById('weeklyInner').innerHTML = weeklyHtml;
-
-        // Store weekly data for chart rendering on expand
         window._weekHourly = d.weekHourly;
 
         // Today chart — smooth area line
@@ -549,23 +582,8 @@ export async function onRequest(context) {
         const todayCanvas = document.getElementById('todayChart');
         todayChartInst = new Chart(todayCanvas, {
             type: 'line',
-            data: {
-                labels: hours,
-                datasets: [{
-                    data: d.todayHourly,
-                    borderColor: '#000',
-                    borderWidth: 2.5,
-                    fill: true,
-                    backgroundColor: makeLineGradient(todayCanvas, 220),
-                    tension: 0.4,
-                    pointRadius: 0,
-                    pointHoverRadius: 5,
-                    pointHoverBackgroundColor: '#000',
-                    pointHoverBorderColor: '#fff',
-                    pointHoverBorderWidth: 2
-                }]
-            },
-            options: lineOpt({ maxTicksLimit: 12 })
+            data: { labels: hours, datasets: [{ data: d.todayHourly, borderColor: '#000', borderWidth: 2.5, fill: true, backgroundColor: makeLineGradient(todayCanvas, 220), tension: 0.4, pointRadius: 0, pointHoverRadius: 5, pointHoverBackgroundColor: '#000', pointHoverBorderColor: '#fff', pointHoverBorderWidth: 2 }] },
+            options: lineOpt(12)
         });
 
         // Month chart — gradient bars
@@ -573,21 +591,10 @@ export async function onRequest(context) {
         const monthCanvas = document.getElementById('monthChart');
         monthChartInst = new Chart(monthCanvas, {
             type: 'bar',
-            data: {
-                labels: Array.from({length: 31}, (_, i) => i + 1),
-                datasets: [{
-                    data: d.monthlyDaily,
-                    backgroundColor: makeBarGradient(monthCanvas, 220),
-                    borderRadius: 6,
-                    borderSkipped: false,
-                    barPercentage: 0.65,
-                    categoryPercentage: 0.8
-                }]
-            },
-            options: barOpt({ maxTicksLimit: 16 })
+            data: { labels: Array.from({length: 31}, (_, i) => i + 1), datasets: [{ data: d.monthlyDaily, backgroundColor: makeBarGradient(monthCanvas, 220), borderRadius: 6, borderSkipped: false, barPercentage: 0.65, categoryPercentage: 0.8 }] },
+            options: barOpt(16)
         });
 
-        // Destroy old week charts
         Object.values(weekChartInsts).forEach(c => c.destroy());
         weekChartInsts = {};
     }
@@ -596,6 +603,10 @@ export async function onRequest(context) {
     function toggle(id) {
         const el = document.getElementById(id);
         el.style.display = (el.style.display === 'block') ? 'none' : 'block';
+    }
+
+    function toggleEmail(idx) {
+        document.getElementById('erow-' + idx).classList.toggle('open');
     }
 
     function toggleWeekDay(day) {
@@ -607,23 +618,8 @@ export async function onRequest(context) {
             const wCanvas = document.getElementById('chart-' + day);
             weekChartInsts[day] = new Chart(wCanvas, {
                 type: 'line',
-                data: {
-                    labels: hours,
-                    datasets: [{
-                        data: window._weekHourly[idx],
-                        borderColor: '#000',
-                        borderWidth: 2,
-                        fill: true,
-                        backgroundColor: makeLineGradient(wCanvas, 200),
-                        tension: 0.4,
-                        pointRadius: 0,
-                        pointHoverRadius: 5,
-                        pointHoverBackgroundColor: '#000',
-                        pointHoverBorderColor: '#fff',
-                        pointHoverBorderWidth: 2
-                    }]
-                },
-                options: lineOpt({ maxTicksLimit: 12 })
+                data: { labels: hours, datasets: [{ data: window._weekHourly[idx], borderColor: '#000', borderWidth: 2, fill: true, backgroundColor: makeLineGradient(wCanvas, 200), tension: 0.4, pointRadius: 0, pointHoverRadius: 5, pointHoverBackgroundColor: '#000', pointHoverBorderColor: '#fff', pointHoverBorderWidth: 2 }] },
+                options: lineOpt(12)
             });
         }
     }
