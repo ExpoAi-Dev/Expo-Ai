@@ -222,7 +222,7 @@
 <div id="optionsOverlay" onclick="closeOptions()"></div>
 <div id="optionsSheet" class="options-sheet">
   <div class="sheet-handle-area" id="optionsHandle"><div class="sheet-handle"></div></div>
-  <div class="mode-option" id="imgGenOption" onclick="setSpecialOption('image_gen')"><div><b>Image Generation</b><br><small id="imgGenOptionSub" style="opacity:0.6;">Create visual assets</small></div><div class="check-mark">✓</div></div>
+  <div class="mode-option" onclick="setSpecialOption('image_gen')"><div><b>Image Generation</b><br><small style="opacity:0.6;">Create visual assets</small></div><div class="check-mark">✓</div></div>
   <div class="mode-option" onclick="setSpecialOption('deep_thinking')"><div><b>Deep Thinking</b><br><small style="opacity:0.6;">Advanced problem solving</small></div><div class="check-mark">✓</div></div>
 </div>
 
@@ -442,9 +442,17 @@ window.onload = async () => {
     const accessToken = localStorage.getItem("sb_access_token");
     
     if (storedUser && accessToken) {
+        // Silently refresh the token if it has expired or is about to (within 5 min)
+        const expiresAt = parseInt(localStorage.getItem("sb_expires_at") || "0", 10);
+        const nowSeconds = Math.floor(Date.now() / 1000);
+        if (expiresAt && nowSeconds >= expiresAt - 300) {
+            const refreshed = await refreshAccessToken();
+            if (!refreshed) {
+                window.location.href = "/login.html";
+                return;
+            }
+        }
         applyUserData(JSON.parse(storedUser));
-        // Check admin toggle for image gen availability
-        fetch('/image-gen-toggle').then(r => r.json()).then(d => applyImageGenAvailability(d.enabled)).catch(() => {});
     } else {
         // Redirection routing to 2-page system
         window.location.href = "/login.html";
@@ -504,26 +512,6 @@ let currentChat = null;
 let currentUserEmail = null;
 let currentMode = "ultrafast"; 
 let activeSpecial = null;
-let imageGenEnabled = true; // controlled by admin toggle
-
-function applyImageGenAvailability(enabled) {
-    imageGenEnabled = enabled;
-    const option = document.getElementById('imgGenOption');
-    const sub = document.getElementById('imgGenOptionSub');
-    const quickBtn = document.getElementById('imgGenQuickBtn');
-    const quickLabel = document.getElementById('imgGenQuickLabel');
-    if (!enabled) {
-        if (option) { option.style.opacity = '0.45'; option.style.pointerEvents = 'none'; }
-        if (sub) sub.textContent = 'Currently not available';
-        if (quickBtn) { quickBtn.style.opacity = '0.45'; quickBtn.style.pointerEvents = 'none'; quickBtn.onclick = e => e.preventDefault(); }
-        if (quickLabel) quickLabel.textContent = 'Currently not available';
-    } else {
-        if (option) { option.style.opacity = ''; option.style.pointerEvents = ''; }
-        if (sub) sub.textContent = 'Create visual assets';
-        if (quickBtn) { quickBtn.style.opacity = ''; quickBtn.style.pointerEvents = ''; quickBtn.onclick = () => { setSpecialOption('image_gen'); document.getElementById('input').focus(); return false; }; }
-        if (quickLabel) quickLabel.textContent = 'Image Generation';
-    }
-}
 let pendingFile = null;
 let abortController = null; 
 let isGenerating = false;
@@ -621,7 +609,12 @@ function acceptSync() {
   pendingSyncDoc = null; document.getElementById("syncPromptOverlay").style.display = "none";
 }
 
-function openOptions() { document.getElementById("optionsSheet").classList.add("open"); document.getElementById("optionsOverlay").style.display = "block"; }
+function openOptions() {
+    document.getElementById("optionsSheet").classList.add("open");
+    document.getElementById("optionsOverlay").style.display = "block";
+    // Live check — always fetch current admin toggle state when sheet opens
+    fetch('/image-gen-toggle').then(r => r.json()).then(d => applyImageGenAvailability(d.enabled)).catch(() => {});
+}
 function closeOptions() { document.getElementById("optionsSheet").classList.remove("open"); document.getElementById("optionsOverlay").style.display = "none"; }
 function openModes() { document.getElementById("modesSheet").classList.add("open"); document.getElementById("sheetOverlay").style.display = "block"; }
 function closeModes() { document.getElementById("modesSheet").classList.remove("open"); document.getElementById("sheetOverlay").style.display = "none"; }
@@ -640,10 +633,7 @@ function handleCurrentChatPin() { closeChatActionSheet(); if (currentChat && cha
 function handleCurrentChatRename() { closeChatActionSheet(); if (currentChat && chats[currentChat]) renameChat(currentChat); }
 function handleCurrentChatDelete() { closeChatActionSheet(); if (currentChat && chats[currentChat]) deleteChat(currentChat); }
 
-function setSpecialOption(type) {
-    if (type === 'image_gen' && !imageGenEnabled) return; // blocked by admin
-    activeSpecial = type; closeOptions(); updateOptionUI();
-}
+function setSpecialOption(type) { activeSpecial = type; closeOptions(); updateOptionUI(); }
 function deselectSpecial() { activeSpecial = null; updateOptionUI(); }
 function updateOptionUI() {
   const standardBtn = document.getElementById("standardOptionBtn");
@@ -908,9 +898,9 @@ function renderMessages() {
           <svg class="qa-icon" viewBox="0 0 24 24"><polyline points="16 18 22 12 16 6"></polyline><polyline points="8 6 2 12 8 18"></polyline></svg>
           <span>Coding Assistant</span>
         </a>
-        <a href="#image-generation" id="imgGenQuickBtn" class="quick-action-btn" onclick="setSpecialOption('image_gen'); document.getElementById('input').focus(); return false;">
+        <a href="#image-generation" class="quick-action-btn" onclick="setSpecialOption('image_gen'); document.getElementById('input').focus(); return false;">
           <svg class="qa-icon" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect><circle cx="8.5" cy="8.5" r="1.5"></circle><polyline points="21 15 16 10 5 21"></polyline></svg>
-          <span id="imgGenQuickLabel">Image Generation</span>
+          <span>Image Generation</span>
         </a>
         <a href="#deep-thinking" class="quick-action-btn" onclick="setSpecialOption('deep_thinking'); document.getElementById('input').focus(); return false;">
           <svg class="qa-icon" viewBox="0 0 24 24"><path d="M9.59 4.59A2 2 0 1 1 11 8H2m10.59 11.41A2 2 0 1 0 14 16H2m15.73-8.27A2.5 2.5 0 1 1 19.5 12H2"></path></svg>
