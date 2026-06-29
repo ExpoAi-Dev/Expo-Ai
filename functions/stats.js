@@ -203,6 +203,21 @@ export async function onRequest(context) {
             margin-bottom: 2px;
             padding-left: 5px;
         }
+
+        /* Image gen toggle card */
+        .toggle-card { background: #fff; border-radius: 20px; padding: 20px; margin-bottom: 15px; box-shadow: 0 2px 12px rgba(0,0,0,0.07); }
+        .toggle-card-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+        .toggle-label { font-size: 15px; font-weight: 700; }
+        .toggle-sub { font-size: 12px; color: #888; margin-top: 3px; }
+        .toggle-switch { position: relative; width: 52px; height: 28px; flex-shrink: 0; }
+        .toggle-switch input { opacity: 0; width: 0; height: 0; }
+        .toggle-track { position: absolute; inset: 0; background: #ddd; border-radius: 999px; cursor: pointer; transition: background 0.25s; }
+        .toggle-track::before { content: ''; position: absolute; width: 22px; height: 22px; left: 3px; top: 3px; background: #fff; border-radius: 50%; transition: transform 0.25s; box-shadow: 0 1px 4px rgba(0,0,0,0.2); }
+        .toggle-switch input:checked + .toggle-track { background: #000; }
+        .toggle-switch input:checked + .toggle-track::before { transform: translateX(24px); }
+        .toggle-status { font-size: 12px; font-weight: 700; margin-top: 10px; padding: 6px 12px; border-radius: 8px; text-align: center; }
+        .toggle-status.on  { background: #f0fdf4; color: #16a34a; }
+        .toggle-status.off { background: #fef2f2; color: #dc2626; }
     </style>
 </head>
 <body>
@@ -284,6 +299,21 @@ export async function onRequest(context) {
         <div id="monthGraph" class="graph-container" onclick="event.stopPropagation()">
             <canvas id="monthChart"></canvas>
         </div>
+    </div>
+
+    <!-- Image Generation Toggle -->
+    <div class="toggle-card">
+        <div class="toggle-card-row">
+            <div>
+                <div class="toggle-label">🖼️ Image Generation</div>
+                <div class="toggle-sub">Enable or disable for all users</div>
+            </div>
+            <label class="toggle-switch">
+                <input type="checkbox" id="imgGenToggle" onchange="handleImgGenToggle(this.checked)">
+                <span class="toggle-track"></span>
+            </label>
+        </div>
+        <div class="toggle-status off" id="toggleStatus">Loading...</div>
     </div>
 
     <a href="/admin" style="display:block;text-align:center;margin-top:40px;color:#bbb;text-decoration:none;font-size:13px;font-weight:600;">LOGOUT</a>
@@ -675,9 +705,52 @@ export async function onRequest(context) {
         if (e.target === document.getElementById('tzOverlay')) closeTz();
     }
 
+    // ── Image Gen Toggle ──────────────────────────────────────────────────────
+    async function loadImgGenState() {
+        try {
+            const res = await fetch('/image-gen-toggle');
+            const data = await res.json();
+            applyToggleUI(data.enabled);
+        } catch(e) {
+            applyToggleUI(true); // default on if unreachable
+        }
+    }
+
+    function applyToggleUI(enabled) {
+        document.getElementById('imgGenToggle').checked = enabled;
+        const status = document.getElementById('toggleStatus');
+        status.textContent = enabled ? '✅ Image Generation is ON — users can generate images' : '🚫 Image Generation is OFF — users will see "Currently not available"';
+        status.className = 'toggle-status ' + (enabled ? 'on' : 'off');
+    }
+
+    async function handleImgGenToggle(enabled) {
+        const status = document.getElementById('toggleStatus');
+        status.textContent = 'Saving...';
+        status.className = 'toggle-status';
+        try {
+            const res = await fetch('/image-gen-toggle?key=${adminKey}', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ enabled })
+            });
+            const data = await res.json();
+            if (data.success) {
+                applyToggleUI(enabled);
+            } else {
+                throw new Error(data.error || 'Failed');
+            }
+        } catch(e) {
+            status.textContent = '⚠️ Failed to save: ' + e.message;
+            status.className = 'toggle-status off';
+            // Revert checkbox
+            document.getElementById('imgGenToggle').checked = !enabled;
+        }
+    }
+
     // ── Init ──────────────────────────────────────────────────────────────────
     loadSavedTz();
     renderDashboard(selectedOffset);
+    loadImgGenState();
     </script>
 </body>
 </html>`;
