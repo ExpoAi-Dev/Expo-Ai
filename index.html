@@ -136,6 +136,17 @@
     .msg-action-btn svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
     .msg-action-btn.active svg { fill: currentColor; }
 
+    /* User message long-press context menu */
+    #msgCtxBg { display:none; position:fixed; inset:0; z-index:2999; background: rgba(0,0,0,0.3); }
+    #msgCtxMenu { display:none; position:fixed; bottom:0; left:0; right:0; background: var(--sidebar-bg); border-radius:20px 20px 0 0; padding:0 0 30px; z-index:3000; box-shadow:0 -4px 30px rgba(0,0,0,0.3); animation: ctxSlideUp 0.22s ease; }
+    @keyframes ctxSlideUp { from { transform:translateY(100%); } to { transform:translateY(0); } }
+    .ctx-handle { width:40px; height:4px; background:rgba(128,128,128,0.35); border-radius:2px; margin:10px auto 16px; }
+    .ctx-item { display:flex; align-items:center; gap:14px; padding:15px 22px; font-size:16px; font-weight:500; color:var(--text-color); cursor:pointer; border:none; background:none; width:100%; text-align:left; }
+    .ctx-item:active { background:rgba(128,128,128,0.1); }
+    .ctx-item svg { width:20px; height:20px; flex-shrink:0; fill:none; stroke:currentColor; stroke-width:2; stroke-linecap:round; stroke-linejoin:round; opacity:0.7; }
+    .ctx-divider { height:1px; background:rgba(128,128,128,0.15); margin:2px 16px; }
+    .msg-hold-active { opacity: 0.6; transform: scale(0.97); transition: 0.15s; }
+
     .empty-chat-container { display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100%; text-align: center; color: var(--text-color); }
     .empty-chat-title { font-size: 24px; font-weight: bold; margin-bottom: 30px; opacity: 0.9; }
     .quick-action-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 15px; width: 100%; max-width: 550px; padding: 0 15px; }
@@ -222,7 +233,7 @@
 <div id="optionsOverlay" onclick="closeOptions()"></div>
 <div id="optionsSheet" class="options-sheet">
   <div class="sheet-handle-area" id="optionsHandle"><div class="sheet-handle"></div></div>
-  <div class="mode-option" id="imgGenOption" onclick="setSpecialOption('image_gen')"><div><b>Image Generation</b><br><small id="imgGenOptionSub" style="opacity:0.6;">Create visual assets</small></div><div class="check-mark">✓</div></div>
+  <div class="mode-option" onclick="setSpecialOption('image_gen')"><div><b>Image Generation</b><br><small style="opacity:0.6;">Create visual assets</small></div><div class="check-mark">✓</div></div>
   <div class="mode-option" onclick="setSpecialOption('deep_thinking')"><div><b>Deep Thinking</b><br><small style="opacity:0.6;">Advanced problem solving</small></div><div class="check-mark">✓</div></div>
 </div>
 
@@ -453,7 +464,6 @@ window.onload = async () => {
             }
         }
         applyUserData(JSON.parse(storedUser));
-        fetch('/image-gen-toggle').then(r => r.json()).then(d => { imageGenEnabled = true; applyImageGenAvailability(d.enabled); }).catch(() => {});
     } else {
         // Redirection routing to 2-page system
         window.location.href = "/login.html";
@@ -512,35 +522,38 @@ let chats = {};
 let currentChat = null; 
 let currentUserEmail = null;
 let currentMode = "ultrafast"; 
-let activeSpecial = null;
-let imageGenEnabled = true;
+let ctxMsgText = null;
+let ctxMsgIndex = null;
+let holdTimer = null;
 
-function applyImageGenAvailability(enabled) {
-    if (imageGenEnabled === enabled) return; // no change, skip DOM update
-    imageGenEnabled = enabled;
-    const option   = document.getElementById('imgGenOption');
-    const sub      = document.getElementById('imgGenOptionSub');
-    const quickBtn = document.getElementById('imgGenQuickBtn');
-    const quickLbl = document.getElementById('imgGenQuickLabel');
-    if (!enabled) {
-        if (option)   { option.style.opacity = '0.4'; option.style.pointerEvents = 'none'; }
-        if (sub)      sub.textContent = 'Currently not available';
-        if (quickBtn) { quickBtn.style.opacity = '0.4'; quickBtn.style.pointerEvents = 'none'; }
-        if (quickLbl) quickLbl.textContent = 'Currently not available';
-        // If user currently has image_gen selected, deselect it
-        if (activeSpecial === 'image_gen') { activeSpecial = null; updateOptionUI(); }
-    } else {
-        if (option)   { option.style.opacity = ''; option.style.pointerEvents = ''; }
-        if (sub)      sub.textContent = 'Create visual assets';
-        if (quickBtn) { quickBtn.style.opacity = ''; quickBtn.style.pointerEvents = ''; }
-        if (quickLbl) quickLbl.textContent = 'Image Generation';
-    }
+function showCtxMenu(text, idx) {
+    ctxMsgText = text;
+    ctxMsgIndex = idx;
+    document.getElementById('msgCtxBg').style.display = 'block';
+    const menu = document.getElementById('msgCtxMenu');
+    menu.style.display = 'block';
+    menu.style.animation = 'none';
+    menu.offsetHeight; // reflow
+    menu.style.animation = 'ctxSlideUp 0.22s ease';
 }
-
-// Poll every 3 seconds — updates UI instantly even if options sheet is open
-setInterval(() => {
-    fetch('/image-gen-toggle').then(r => r.json()).then(d => applyImageGenAvailability(d.enabled)).catch(() => {});
-}, 3000);
+function closeCtxMenu() {
+    document.getElementById('msgCtxMenu').style.display = 'none';
+    document.getElementById('msgCtxBg').style.display = 'none';
+}
+function ctxCopy() {
+    if (ctxMsgText) navigator.clipboard.writeText(ctxMsgText).catch(() => {});
+    closeCtxMenu();
+}
+function ctxEdit() {
+    if (ctxMsgText) {
+        const inp = document.getElementById('input');
+        inp.value = ctxMsgText;
+        inp.style.height = 'auto';
+        inp.style.height = inp.scrollHeight + 'px';
+        inp.focus();
+    }
+    closeCtxMenu();
+}
 let pendingFile = null;
 let abortController = null; 
 let isGenerating = false;
@@ -657,10 +670,7 @@ function handleCurrentChatPin() { closeChatActionSheet(); if (currentChat && cha
 function handleCurrentChatRename() { closeChatActionSheet(); if (currentChat && chats[currentChat]) renameChat(currentChat); }
 function handleCurrentChatDelete() { closeChatActionSheet(); if (currentChat && chats[currentChat]) deleteChat(currentChat); }
 
-function setSpecialOption(type) {
-    if (type === 'image_gen' && !imageGenEnabled) return;
-    activeSpecial = type; closeOptions(); updateOptionUI();
-}
+function setSpecialOption(type) { activeSpecial = type; closeOptions(); updateOptionUI(); }
 function deselectSpecial() { activeSpecial = null; updateOptionUI(); }
 function updateOptionUI() {
   const standardBtn = document.getElementById("standardOptionBtn");
@@ -925,9 +935,9 @@ function renderMessages() {
           <svg class="qa-icon" viewBox="0 0 24 24"><polyline points="16 18 22 12 16 6"></polyline><polyline points="8 6 2 12 8 18"></polyline></svg>
           <span>Coding Assistant</span>
         </a>
-        <a href="#image-generation" id="imgGenQuickBtn" class="quick-action-btn" onclick="setSpecialOption('image_gen'); document.getElementById('input').focus(); return false;">
+        <a href="#image-generation" class="quick-action-btn" onclick="setSpecialOption('image_gen'); document.getElementById('input').focus(); return false;">
           <svg class="qa-icon" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect><circle cx="8.5" cy="8.5" r="1.5"></circle><polyline points="21 15 16 10 5 21"></polyline></svg>
-          <span id="imgGenQuickLabel">Image Generation</span>
+          <span>Image Generation</span>
         </a>
         <a href="#deep-thinking" class="quick-action-btn" onclick="setSpecialOption('deep_thinking'); document.getElementById('input').focus(); return false;">
           <svg class="qa-icon" viewBox="0 0 24 24"><path d="M9.59 4.59A2 2 0 1 1 11 8H2m10.59 11.41A2 2 0 1 0 14 16H2m15.73-8.27A2.5 2.5 0 1 1 19.5 12H2"></path></svg>
@@ -963,24 +973,23 @@ function renderMessages() {
     
     wrapper.appendChild(msgDiv);
 
-    // Copy button for user messages
+    // User message: long-press shows Copy / Edit menu
     if (isUser && !msg.parts[0].isImage) {
-      const userTray = document.createElement("div");
-      userTray.className = "msg-action-tray";
-      userTray.style.justifyContent = "flex-end";
-      const userCopyBtn = document.createElement("button");
-      userCopyBtn.className = "msg-action-btn";
-      userCopyBtn.title = "Copy message";
-      userCopyBtn.innerHTML = `<svg viewBox="0 0 24 24"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>`;
-      userCopyBtn.onclick = function() {
-          navigator.clipboard.writeText(msg.parts[0].text).then(() => {
-              const orig = this.innerHTML;
-              this.innerHTML = `<svg viewBox="0 0 24 24" style="stroke: #10b981;"><polyline points="20 6 9 17 4 12"></polyline></svg>`;
-              setTimeout(() => { this.innerHTML = orig; }, 2000);
-          });
-      };
-      userTray.appendChild(userCopyBtn);
-      wrapper.appendChild(userTray);
+      const txt = msg.parts[0].text;
+      const idx = index;
+      let holdTimer = null;
+
+      msgDiv.addEventListener('touchstart', () => {
+          holdTimer = setTimeout(() => {
+              msgDiv.classList.add('msg-hold-active');
+              showCtxMenu(txt, idx);
+              setTimeout(() => msgDiv.classList.remove('msg-hold-active'), 300);
+          }, 500);
+      }, { passive: true });
+      msgDiv.addEventListener('touchend',  () => clearTimeout(holdTimer));
+      msgDiv.addEventListener('touchmove', () => clearTimeout(holdTimer));
+      // Desktop right-click
+      msgDiv.addEventListener('contextmenu', (e) => { e.preventDefault(); showCtxMenu(txt, idx); });
     }
 
     // If it's a Bot response, attach the feedback action tray underneath
@@ -1124,5 +1133,20 @@ window.onclick = (e) => {
   if (!e.target.closest('.profile-btn') && !e.target.closest('#accountPanel')) document.getElementById("accountPanel").style.display = "none"; 
 };
 </script>
+<!-- User message long-press context menu -->
+<div id="msgCtxBg" onclick="closeCtxMenu()"></div>
+<div id="msgCtxMenu">
+  <div class="ctx-handle"></div>
+  <button class="ctx-item" onclick="ctxCopy()">
+    <svg viewBox="0 0 24 24"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>
+    Copy message
+  </button>
+  <div class="ctx-divider"></div>
+  <button class="ctx-item" onclick="ctxEdit()">
+    <svg viewBox="0 0 24 24"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path></svg>
+    Edit
+  </button>
+</div>
+
 </body>
 </html>
