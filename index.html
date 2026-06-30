@@ -147,16 +147,6 @@
     .ctx-divider { height:1px; background:rgba(128,128,128,0.15); margin:2px 16px; }
     .msg-hold-active { opacity: 0.6; transform: scale(0.97); transition: 0.15s; }
 
-    /* AI ask-options popup card */
-    .ask-options-card { background: var(--bot-msg-bg); border-radius: 16px; padding: 14px 16px; max-width: 85%; margin: 8px 0; }
-    .ask-options-question { font-size: 15px; font-weight: 600; color: var(--text-color); margin-bottom: 12px; line-height: 1.4; }
-    .ask-options-list { display: flex; flex-direction: column; gap: 8px; }
-    .ask-option-btn { background: var(--main-bg, rgba(255,255,255,0.06)); border: 1.5px solid rgba(128,128,128,0.3); color: var(--text-color); padding: 11px 14px; border-radius: 12px; font-size: 14px; font-weight: 500; text-align: left; cursor: pointer; transition: 0.15s; }
-    .ask-option-btn:hover { border-color: var(--accent-blue); background: rgba(59,130,246,0.08); }
-    .ask-option-btn:active { transform: scale(0.98); }
-    .ask-option-btn.selected { background: var(--accent-blue); border-color: var(--accent-blue); color: #fff; }
-    .ask-option-btn:disabled { opacity: 0.5; cursor: default; pointer-events: none; }
-
     .empty-chat-container { display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100%; text-align: center; color: var(--text-color); }
     .empty-chat-title { font-size: 24px; font-weight: bold; margin-bottom: 30px; opacity: 0.9; }
     .quick-action-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 15px; width: 100%; max-width: 550px; padding: 0 15px; }
@@ -932,18 +922,6 @@ function rateMsg(msgIndex, type) {
   renderMessages();
 }
 
-function selectAskOption(msgIndex, optionText) {
-    if (!currentChat || !chats[currentChat]) return;
-    const msg = chats[currentChat].messages[msgIndex];
-    if (!msg || msg.askOptionAnswered) return;
-    msg.askOptionAnswered = optionText;
-    save();
-    renderMessages();
-    const input = document.getElementById("input");
-    input.value = optionText;
-    askAI();
-}
-
 function renderMessages() {
   const box = document.getElementById("chat"); 
   const headerActions = document.getElementById("mainHeaderActions");
@@ -987,55 +965,13 @@ function renderMessages() {
     const msgDiv = document.createElement("div");
     msgDiv.className = "message " + (isUser ? "user" : "bot");
 
-    // Detect AI ask-options tag (only for completed bot messages)
-    let askOptionsData = null;
-    let textBeforeAsk = msg.parts[0].text;
-    if (!isUser && !msg.parts[0].isImage) {
-      const askMatch = msg.parts[0].text.match(/<ask-options>([\s\S]*?)<\/ask-options>/);
-      if (askMatch) {
-        try {
-          const parsed = JSON.parse(askMatch[1]);
-          if (parsed.question && Array.isArray(parsed.options)) {
-            askOptionsData = parsed;
-            textBeforeAsk = msg.parts[0].text.split('<ask-options>')[0].trim();
-          }
-        } catch (e) { /* incomplete JSON mid-stream, ignore */ }
-      }
-    }
-
     if (msg.parts[0].isImage) {
       msgDiv.innerHTML = `<img src="${msg.parts[0].text}" style="width: 100%; border-radius: 10px; display: block;" alt="AI Generated Image">`;
-    } else if (askOptionsData) {
-      msgDiv.style.display = textBeforeAsk ? "" : "none";
-      msgDiv.innerHTML = textBeforeAsk.replace(/\n/g, '<br>');
     } else {
       msgDiv.innerHTML = msg.parts[0].text.replace(/\n/g, '<br>');
     }
     
     wrapper.appendChild(msgDiv);
-
-    // Render ask-options as a tappable popup card
-    if (askOptionsData) {
-      const alreadyAnswered = !!msg.askOptionAnswered;
-      const card = document.createElement("div");
-      card.className = "ask-options-card";
-      const qDiv = document.createElement("div");
-      qDiv.className = "ask-options-question";
-      qDiv.textContent = askOptionsData.question;
-      card.appendChild(qDiv);
-      const list = document.createElement("div");
-      list.className = "ask-options-list";
-      askOptionsData.options.forEach(opt => {
-        const btn = document.createElement("button");
-        btn.className = "ask-option-btn" + (alreadyAnswered && msg.askOptionAnswered === opt ? " selected" : "");
-        btn.textContent = opt;
-        btn.disabled = alreadyAnswered;
-        btn.onclick = () => selectAskOption(index, opt);
-        list.appendChild(btn);
-      });
-      card.appendChild(list);
-      wrapper.appendChild(card);
-    }
 
     // User message: long-press shows Copy / Edit menu
     if (isUser && !msg.parts[0].isImage) {
@@ -1139,7 +1075,7 @@ async function askAI() {
   sendBtn.innerHTML = "■ Stop"; sendBtn.style.backgroundColor = "#ef4444"; input.disabled = true; input.placeholder = "Generating response...";
 
   let conversationPayload = [...chats[currentChat].messages];
-  conversationPayload.unshift({ role: 'system', parts: [{ text: 'Your name is Expoloom AI. You were created by the Expoloom Team. Always identify as Expoloom AI and never as a Google model. When you need to ask the user a clarifying question that has a small set of clear, distinct answer choices (2-5 options), present it using this exact format: <ask-options>{"question":"Your question here","options":["Option 1","Option 2","Option 3"]}</ask-options> — put this tag on its own, with nothing else around it, only when a multiple-choice question genuinely fits. For open-ended questions or normal conversation, just respond normally in plain text.' }] });
+  conversationPayload.unshift({ role: 'system', parts: [{ text: 'Your name is Expoloom AI. You were created by the Expoloom Team. Always identify as Expoloom AI and never as a Google model.' }] });
 
   try {
     // Refresh access token if expired or within 5 minutes of expiry
@@ -1182,7 +1118,10 @@ async function askAI() {
   } catch (e) {
     removeLoading();
     if (e.name === 'AbortError') console.log("Generation stopped.");
-    else chats[currentChat].messages.push({ role: "model", parts: [{ text: "Expoloom AI is temporarily unavailable. Please try again." }] });
+    else {
+        console.error("askAI error:", e);
+        chats[currentChat].messages.push({ role: "model", parts: [{ text: "⚠️ Error: " + (e.message || "Expoloom AI is temporarily unavailable. Please try again.") }] });
+    }
   } finally {
     isGenerating = false; sendBtn.innerHTML = "Send"; sendBtn.style.backgroundColor = "var(--accent-blue)";
     input.disabled = false; input.placeholder = "Ask anything..."; 
