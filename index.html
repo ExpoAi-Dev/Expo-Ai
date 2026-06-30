@@ -522,6 +522,7 @@ let chats = {};
 let currentChat = null; 
 let currentUserEmail = null;
 let currentMode = "ultrafast"; 
+let activeSpecial = null;
 let ctxMsgText = null;
 let ctxMsgIndex = null;
 let holdTimer = null;
@@ -1100,7 +1101,7 @@ async function askAI() {
       if (res.ok) {
         if (data.image) chats[currentChat].messages.push({ role: "model", parts: [{ text: data.image, isImage: true }] });
         else if (data.candidates) chats[currentChat].messages.push(data.candidates[0].content);
-      } else throw new Error(data.error || `Server returned ${res.status}`);
+      } else throw new Error();
     } else if (res.ok && res.body) {
       const reader = res.body.getReader(); const decoder = new TextDecoder();
       let botMessage = { role: "model", parts: [{ text: "" }] }; chats[currentChat].messages.push(botMessage);
@@ -1113,15 +1114,12 @@ async function askAI() {
           }
         }
       }
-    } else throw new Error(`Unexpected response (status ${res.status})`);
+    } else throw new Error();
     if(chats[currentChat].messages.length <= 3 && chats[currentChat].name === "New Chat") chats[currentChat].name = msgText.substring(0, 15);
   } catch (e) {
     removeLoading();
     if (e.name === 'AbortError') console.log("Generation stopped.");
-    else {
-        console.error("askAI error:", e);
-        chats[currentChat].messages.push({ role: "model", parts: [{ text: "⚠️ Error: " + (e.message || "Expoloom AI is temporarily unavailable. Please try again.") }] });
-    }
+    else chats[currentChat].messages.push({ role: "model", parts: [{ text: "Expoloom AI is temporarily unavailable. Please try again." }] });
   } finally {
     isGenerating = false; sendBtn.innerHTML = "Send"; sendBtn.style.backgroundColor = "var(--accent-blue)";
     input.disabled = false; input.placeholder = "Ask anything..."; 
