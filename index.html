@@ -157,6 +157,33 @@
     .ask-option-btn.selected { background: var(--accent-blue); border-color: var(--accent-blue); color: #fff; }
     .ask-option-btn:disabled { opacity: 0.5; cursor: default; pointer-events: none; }
 
+    /* Claude-style voice overlay */
+    .voice-overlay {
+      display: none;
+      position: fixed; inset: 0; z-index: 4000;
+      background: rgba(8, 10, 18, 0.92);
+      backdrop-filter: blur(20px);
+      -webkit-backdrop-filter: blur(20px);
+      align-items: center; justify-content: center;
+      animation: voiceFadeIn 0.25s ease;
+    }
+    @keyframes voiceFadeIn { from { opacity: 0; } to { opacity: 1; } }
+    .voice-overlay-inner { display: flex; flex-direction: column; align-items: center; gap: 28px; width: 100%; padding: 0 24px; }
+    .voice-status-text { color: #fff; font-size: 17px; font-weight: 600; opacity: 0.85; letter-spacing: 0.2px; }
+    #audioVisualizer { width: 100%; max-width: 480px; height: 140px; }
+    .voice-controls-row { display: flex; align-items: center; gap: 28px; }
+    .voice-cancel-btn, .voice-done-btn {
+      width: 58px; height: 58px; border-radius: 50%; border: none; cursor: pointer;
+      display: flex; align-items: center; justify-content: center;
+      transition: transform 0.15s ease;
+    }
+    .voice-cancel-btn { background: rgba(255,255,255,0.1); color: #fff; }
+    .voice-cancel-btn svg { width: 22px; height: 22px; }
+    .voice-cancel-btn:active { transform: scale(0.92); background: rgba(255,255,255,0.18); }
+    .voice-done-btn { background: linear-gradient(135deg, #3b82f6, #6366f1); color: #fff; box-shadow: 0 4px 24px rgba(59,130,246,0.45); }
+    .voice-done-btn svg { width: 24px; height: 24px; }
+    .voice-done-btn:active { transform: scale(0.92); }
+
     .empty-chat-container { display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100%; text-align: center; color: var(--text-color); }
     .empty-chat-title { font-size: 24px; font-weight: bold; margin-bottom: 30px; opacity: 0.9; }
     .quick-action-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 15px; width: 100%; max-width: 550px; padding: 0 15px; }
@@ -334,10 +361,6 @@
       <span style="font-size: 16px;">📎</span>
       <span id="fileNameDisplay" class="preview-text"></span>
       <span class="remove-attachment" onclick="clearAttachment()">✕</span>
-    </div>
-    <canvas id="audioVisualizer" width="300" height="40" style="display:none; margin: 0 auto 10px auto; width: 100%; max-width: 300px;"></canvas>
-    <div id="voiceToTypeContainer" style="display: none; justify-content: flex-end; margin-bottom: 8px;">
-      <button id="voiceToTypeBtn" onclick="processVoiceToType()" style="background: #10b981; color: white; border: none; border-radius: 12px; padding: 8px 15px; font-size: 13px; font-weight: bold; cursor: pointer; transition: 0.2s;">✨ Voice to Type</button>
     </div>
 
     <div class="input-area">
@@ -720,16 +743,10 @@ const canvasCtx = visualizerCanvas.getContext("2d");
 async function toggleVoice() {
   if (isGenerating) return;
   const micBtn = document.getElementById("micBtn");
-  const voiceToTypeContainer = document.getElementById("voiceToTypeContainer");
+  const voiceOverlay = document.getElementById("voiceOverlay");
 
   if (mediaRecorder && mediaRecorder.state === "recording") {
-    cancelTranscription = true; 
-    mediaRecorder.stop();
-    micBtn.classList.remove("listening");
-    visualizerCanvas.style.display = "none";
-    voiceToTypeContainer.style.display = "none";
-    if (audioCtx) { audioCtx.close(); audioCtx = null; }
-    cancelAnimationFrame(visualizerAnimationId);
+    cancelVoiceRecording();
     return;
   }
 
@@ -739,10 +756,11 @@ async function toggleVoice() {
     audioCtx = new (window.AudioContext || window.webkitAudioContext)();
     analyser = audioCtx.createAnalyser();
     const source = audioCtx.createMediaStreamSource(stream);
-    source.connect(analyser); analyser.fftSize = 128;
+    source.connect(analyser); analyser.fftSize = 256;
     dataArray = new Uint8Array(analyser.frequencyBinCount);
     
-    visualizerCanvas.style.display = "block"; voiceToTypeContainer.style.display = "flex"; 
+    voiceOverlay.style.display = "flex";
+    document.getElementById("voiceStatusText").textContent = "Listening...";
     micBtn.classList.add("listening"); drawVisualizer();
 
     mediaRecorder = new MediaRecorder(stream);
@@ -782,33 +800,65 @@ async function toggleVoice() {
   } catch (err) { alert("Could not access microphone."); }
 }
 
+function cancelVoiceRecording() {
+  cancelTranscription = true;
+  if (mediaRecorder && mediaRecorder.state === "recording") mediaRecorder.stop();
+  document.getElementById("micBtn").classList.remove("listening");
+  document.getElementById("voiceOverlay").style.display = "none";
+  if (audioCtx) { audioCtx.close(); audioCtx = null; }
+  cancelAnimationFrame(visualizerAnimationId);
+}
+
 function processVoiceToType() {
   if (mediaRecorder && mediaRecorder.state === "recording") {
-    cancelTranscription = false; mediaRecorder.stop();
+    cancelTranscription = false;
+    document.getElementById("voiceStatusText").textContent = "Transcribing...";
+    mediaRecorder.stop();
     document.getElementById("micBtn").classList.remove("listening");
-    document.getElementById("audioVisualizer").style.display = "none";
-    document.getElementById("voiceToTypeContainer").style.display = "none";
+    setTimeout(() => { document.getElementById("voiceOverlay").style.display = "none"; }, 250);
     if (audioCtx) { audioCtx.close(); audioCtx = null; }
     cancelAnimationFrame(visualizerAnimationId);
   }
 }
 
+let wavePhase = 0;
 function drawVisualizer() {
   if (!audioCtx) return;
   visualizerAnimationId = requestAnimationFrame(drawVisualizer);
   analyser.getByteFrequencyData(dataArray);
-  canvasCtx.clearRect(0, 0, visualizerCanvas.width, visualizerCanvas.height);
-  let barWidth = (visualizerCanvas.width / analyser.frequencyBinCount) * 2;
-  let barHeight; let x = 0;
 
-  for(let i = 0; i < analyser.frequencyBinCount; i++) {
-    barHeight = (dataArray[i] / 255) * visualizerCanvas.height;
-    if (barHeight < 2) barHeight = 2; 
-    canvasCtx.fillStyle = '#2563eb'; 
-    const y = (visualizerCanvas.height - barHeight) / 2;
-    canvasCtx.beginPath(); canvasCtx.roundRect(x, y, barWidth - 2, barHeight, 5); canvasCtx.fill();
-    x += barWidth;
-  }
+  const w = visualizerCanvas.width, h = visualizerCanvas.height, midY = h / 2;
+  canvasCtx.clearRect(0, 0, w, h);
+
+  // Average amplitude (0–1) drives the wave's energy
+  let sum = 0;
+  for (let i = 0; i < dataArray.length; i++) sum += dataArray[i];
+  const avgAmp = (sum / dataArray.length) / 255;
+  wavePhase += 0.12 + avgAmp * 0.15;
+
+  // Draw 3 overlapping flowing sine waves (Claude-style layered look)
+  const waveConfigs = [
+    { freq: 0.018, ampMul: 1.0,  color: 'rgba(99,102,241,0.9)',  speed: 1.0,  lineWidth: 3.5 },
+    { freq: 0.026, ampMul: 0.65, color: 'rgba(59,130,246,0.55)', speed: 1.4,  lineWidth: 2.5 },
+    { freq: 0.013, ampMul: 0.45, color: 'rgba(139,92,246,0.4)',  speed: 0.7,  lineWidth: 2   }
+  ];
+
+  waveConfigs.forEach(cfg => {
+    canvasCtx.beginPath();
+    const baseAmp = 6 + avgAmp * 55 * cfg.ampMul;
+    for (let x = 0; x <= w; x += 4) {
+      // Frequency-bin sample mapped across width for organic variation
+      const binIndex = Math.floor((x / w) * (analyser.frequencyBinCount * 0.5));
+      const localAmp = (dataArray[binIndex] / 255);
+      const y = midY + Math.sin(x * cfg.freq + wavePhase * cfg.speed) * (baseAmp * (0.4 + localAmp * 0.8));
+      if (x === 0) canvasCtx.moveTo(x, y); else canvasCtx.lineTo(x, y);
+    }
+    canvasCtx.strokeStyle = cfg.color;
+    canvasCtx.lineWidth = cfg.lineWidth;
+    canvasCtx.lineCap = 'round';
+    canvasCtx.lineJoin = 'round';
+    canvasCtx.stroke();
+  });
 }
 
 function save() { 
@@ -1214,6 +1264,22 @@ window.onclick = (e) => {
     <svg viewBox="0 0 24 24"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path></svg>
     Edit
   </button>
+</div>
+
+<!-- Claude-style Voice Recording Overlay -->
+<div id="voiceOverlay" class="voice-overlay">
+  <div class="voice-overlay-inner">
+    <div class="voice-status-text" id="voiceStatusText">Listening...</div>
+    <canvas id="audioVisualizer" width="600" height="200"></canvas>
+    <div class="voice-controls-row">
+      <button class="voice-cancel-btn" onclick="cancelVoiceRecording()" title="Cancel">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+      </button>
+      <button class="voice-done-btn" id="voiceDoneBtn" onclick="processVoiceToType()" title="Done">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+      </button>
+    </div>
+  </div>
 </div>
 
 </body>
