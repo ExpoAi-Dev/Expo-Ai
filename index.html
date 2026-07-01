@@ -751,35 +751,17 @@ async function toggleVoice() {
   }
 
   cancelTranscription = false;
-
-  // Request mic first — don't open overlay if denied
-  let stream;
   try {
-    stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-  } catch (err) {
-    alert("Could not access microphone. Please allow mic permission in your browser settings.");
-    return;
-  }
-
-  // Show overlay FIRST so canvas gets real rendered dimensions
-  voiceOverlay.style.display = "flex";
-  document.getElementById("voiceStatusText").textContent = "Listening...";
-  micBtn.classList.add("listening");
-
-  // Wait 2 frames for browser to render overlay and canvas
-  await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
-
-  const canvas = document.getElementById("audioVisualizer");
-  canvas.width  = canvas.offsetWidth  > 0 ? canvas.offsetWidth  : window.innerWidth;
-  canvas.height = canvas.offsetHeight > 0 ? canvas.offsetHeight : 140;
-
-  audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-  analyser = audioCtx.createAnalyser();
-  analyser.fftSize = 256;
-  const source = audioCtx.createMediaStreamSource(stream);
-  source.connect(analyser);
-  dataArray = new Uint8Array(analyser.frequencyBinCount);
-  drawVisualizer();
+    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    analyser = audioCtx.createAnalyser();
+    const source = audioCtx.createMediaStreamSource(stream);
+    source.connect(analyser); analyser.fftSize = 256;
+    dataArray = new Uint8Array(analyser.frequencyBinCount);
+    
+    voiceOverlay.style.display = "flex";
+    document.getElementById("voiceStatusText").textContent = "Listening...";
+    micBtn.classList.add("listening"); drawVisualizer();
 
   mediaRecorder = new MediaRecorder(stream);
   audioChunks = [];
@@ -795,30 +777,33 @@ async function toggleVoice() {
       return;
     }
 
-    const audioBlob = new Blob(audioChunks, { type: 'audio/webm' });
+    const mimeType = mediaRecorder.mimeType || 'audio/webm';
+    const ext = mimeType.includes('ogg') ? 'ogg' : mimeType.includes('mp4') ? 'mp4' : 'webm';
+    const audioBlob = new Blob(audioChunks, { type: mimeType });
     const input = document.getElementById("input");
     const originalPlaceholder = input.placeholder;
     input.placeholder = "Transcribing...";
     input.disabled = true;
 
     const formData = new FormData();
-    formData.append("file", audioBlob, "audio.webm");
+    formData.append("file", audioBlob, "audio." + ext);
 
     try {
       const token = localStorage.getItem("sb_access_token") || "";
       const headersConfig = {};
       if (token) headersConfig['Authorization'] = `Bearer ${token}`;
       const response = await fetch("/chat", { method: "POST", headers: headersConfig, body: formData });
-      if (response.ok) {
-        const data = await response.json();
-        if (data.text) { input.value = (input.value + " " + data.text).trim(); autoExpand(input); }
-        else alert("Nothing was transcribed. Please try speaking again.");
+      const data = await response.json();
+      if (data.error) {
+        alert("Transcription error: " + data.error);
+      } else if (data.text && data.text.trim()) {
+        input.value = (input.value + " " + data.text).trim();
+        autoExpand(input);
       } else {
-        const errData = await response.json().catch(() => ({}));
-        alert("Transcription failed: " + (errData.error || response.status));
+        alert("Nothing was heard. Please speak clearly and try again.");
       }
     } catch (e) {
-      alert("Transcription error: " + e.message);
+      alert("Transcription failed: " + e.message);
     } finally {
       input.placeholder = originalPlaceholder;
       input.disabled = false;
@@ -826,7 +811,8 @@ async function toggleVoice() {
     }
   };
 
-  mediaRecorder.start(100); // 100ms timeslice ensures chunks arrive even for short recordings
+  mediaRecorder.start(100);
+  } catch (err) { alert("Could not access microphone."); }
 }
 
 function cancelVoiceRecording() {
@@ -839,13 +825,15 @@ function cancelVoiceRecording() {
 }
 
 function processVoiceToType() {
-  cancelTranscription = false;
-  document.getElementById("voiceStatusText").textContent = "Transcribing...";
-  if (mediaRecorder && mediaRecorder.state === "recording") mediaRecorder.stop();
-  document.getElementById("micBtn").classList.remove("listening");
-  if (audioCtx) { audioCtx.close(); audioCtx = null; }
-  cancelAnimationFrame(visualizerAnimationId);
-  setTimeout(() => { document.getElementById("voiceOverlay").style.display = "none"; }, 500);
+  if (mediaRecorder && mediaRecorder.state === "recording") {
+    cancelTranscription = false;
+    document.getElementById("voiceStatusText").textContent = "Transcribing...";
+    mediaRecorder.stop();
+    document.getElementById("micBtn").classList.remove("listening");
+    setTimeout(() => { document.getElementById("voiceOverlay").style.display = "none"; }, 250);
+    if (audioCtx) { audioCtx.close(); audioCtx = null; }
+    cancelAnimationFrame(visualizerAnimationId);
+  }
 }
 
 let wavePhase = 0;
