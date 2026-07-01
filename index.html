@@ -737,8 +737,19 @@ function handleFileUpload(input) {
 function clearAttachment() { pendingFile = null; document.getElementById("filePreview").classList.remove("active"); document.getElementById("fileInput").value = ""; }
 
 let mediaRecorder; let audioChunks = []; let audioCtx, analyser, dataArray; let visualizerAnimationId; let cancelTranscription = false; 
-const visualizerCanvas = document.getElementById("audioVisualizer");
-const canvasCtx = visualizerCanvas.getContext("2d");
+let visualizerCanvas = null;
+let canvasCtx = null;
+function getVisualizerCanvas() {
+  if (!visualizerCanvas) {
+    visualizerCanvas = document.getElementById("audioVisualizer");
+    if (!visualizerCanvas) {
+      alert("Setup Error: could not find #audioVisualizer canvas element in the page.");
+      return null;
+    }
+    canvasCtx = visualizerCanvas.getContext("2d");
+  }
+  return visualizerCanvas;
+}
 
 async function toggleVoice() {
   if (isGenerating) return;
@@ -873,10 +884,12 @@ function processVoiceToType() {
 let wavePhase = 0;
 function drawVisualizer() {
   if (!audioCtx) return;
+  const canvas = getVisualizerCanvas();
+  if (!canvas) return;
   visualizerAnimationId = requestAnimationFrame(drawVisualizer);
   analyser.getByteFrequencyData(dataArray);
 
-  const w = visualizerCanvas.width, h = visualizerCanvas.height, midY = h / 2;
+  const w = canvas.width, h = canvas.height, midY = h / 2;
   canvasCtx.clearRect(0, 0, w, h);
 
   // Average amplitude (0–1) drives the wave's energy
