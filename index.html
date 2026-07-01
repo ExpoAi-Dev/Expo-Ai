@@ -793,7 +793,12 @@ async function toggleVoice() {
       const headersConfig = {};
       if (token) headersConfig['Authorization'] = `Bearer ${token}`;
       const response = await fetch("/chat", { method: "POST", headers: headersConfig, body: formData });
-      const data = await response.json();
+      let data;
+      try {
+        data = await response.json();
+      } catch (parseErr) {
+        throw new Error(response.status === 401 ? "Your session expired. Please log in again." : "Unexpected server response (status " + response.status + ").");
+      }
       if (data.error) {
         alert("Transcription error: " + data.error);
       } else if (data.text && data.text.trim()) {
