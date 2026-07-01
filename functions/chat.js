@@ -31,36 +31,40 @@ export async function onRequest(context) {
 
     const contentType = request.headers.get("content-type") || "";
     
-    // NEW BLOCK: Detect Voice Recording and send to Groq Whisper API
+    // VOICE TRANSCRIPTION — has its own error handler returning JSON (not SSE)
     if (contentType.includes("multipart/form-data")) {
-      const formData = await request.formData();
-      const file = formData.get("file");
-      
-      if (!file) throw new Error("No audio file provided.");
-      if (!env.GROQ_API_KEY) throw new Error("GROQ_API_KEY is missing from Cloudflare.");
+      try {
+        const formData = await request.formData();
+        const file = formData.get("file");
+        
+        if (!file) return new Response(JSON.stringify({ error: "No audio file received." }), { status: 400, headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" } });
+        if (!env.GROQ_API_KEY) return new Response(JSON.stringify({ error: "GROQ_API_KEY missing from Cloudflare." }), { status: 500, headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" } });
 
-      const groqAudioData = new FormData();
-      groqAudioData.append("file", file);
-      groqAudioData.append("model", "whisper-large-v3-turbo");
+        const groqAudioData = new FormData();
+        // Rename to .wav if webm not supported, Groq accepts both
+        const fileName = file.name || "audio.webm";
+        groqAudioData.append("file", file, fileName);
+        groqAudioData.append("model", "whisper-large-v3-turbo");
+        groqAudioData.append("language", "en");
 
-      const groqResponse = await fetch("https://api.groq.com/openai/v1/audio/transcriptions", {
-        method: "POST",
-        headers: {
-          "Authorization": `Bearer ${env.GROQ_API_KEY}`
-          // Fetch automatically sets the correct Content-Type boundary for FormData
-        },
-        body: groqAudioData
-      });
+        const groqResponse = await fetch("https://api.groq.com/openai/v1/audio/transcriptions", {
+          method: "POST",
+          headers: { "Authorization": `Bearer ${env.GROQ_API_KEY}` },
+          body: groqAudioData
+        });
 
-      if (!groqResponse.ok) {
-         const errText = await groqResponse.text();
-         throw new Error("Whisper API Error: " + errText);
+        if (!groqResponse.ok) {
+          const errText = await groqResponse.text();
+          return new Response(JSON.stringify({ error: "Whisper API Error: " + errText }), { status: 500, headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" } });
+        }
+
+        const result = await groqResponse.json();
+        return new Response(JSON.stringify({ text: result.text || "" }), {
+          headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" }
+        });
+      } catch (audioErr) {
+        return new Response(JSON.stringify({ error: "Transcription exception: " + audioErr.message }), { status: 500, headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" } });
       }
-
-      const result = await groqResponse.json();
-      return new Response(JSON.stringify({ text: result.text }), {
-        headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" }
-      });
     }
 
     // --- EXISTING CHAT LOGIC BELOW ---
