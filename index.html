@@ -752,72 +752,81 @@ async function toggleVoice() {
 
   cancelTranscription = false;
 
-  // Request mic FIRST — only open overlay if permission granted
+  // Request mic first — don't open overlay if denied
   let stream;
   try {
     stream = await navigator.mediaDevices.getUserMedia({ audio: true });
   } catch (err) {
     alert("Could not access microphone. Please allow mic permission in your browser settings.");
-    return; // ← stop here, don't open overlay
+    return;
   }
 
-  try {
-    audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-    analyser = audioCtx.createAnalyser();
-    const source = audioCtx.createMediaStreamSource(stream);
-    source.connect(analyser); analyser.fftSize = 256;
-    dataArray = new Uint8Array(analyser.frequencyBinCount);
+  // Show overlay FIRST so canvas gets real rendered dimensions
+  voiceOverlay.style.display = "flex";
+  document.getElementById("voiceStatusText").textContent = "Listening...";
+  micBtn.classList.add("listening");
 
-    // Show overlay AFTER permission granted
-    voiceOverlay.style.display = "flex";
-    document.getElementById("voiceStatusText").textContent = "Listening...";
-    micBtn.classList.add("listening");
+  // Wait 2 frames for browser to render overlay and canvas
+  await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
 
-    // Fix canvas pixel size to match actual rendered size
-    const canvas = document.getElementById("audioVisualizer");
-    canvas.width  = canvas.offsetWidth  || 600;
-    canvas.height = canvas.offsetHeight || 140;
+  const canvas = document.getElementById("audioVisualizer");
+  canvas.width  = canvas.offsetWidth  > 0 ? canvas.offsetWidth  : window.innerWidth;
+  canvas.height = canvas.offsetHeight > 0 ? canvas.offsetHeight : 140;
 
-    drawVisualizer();
+  audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  analyser = audioCtx.createAnalyser();
+  analyser.fftSize = 256;
+  const source = audioCtx.createMediaStreamSource(stream);
+  source.connect(analyser);
+  dataArray = new Uint8Array(analyser.frequencyBinCount);
+  drawVisualizer();
 
-    mediaRecorder = new MediaRecorder(stream);
-    audioChunks = [];
-    mediaRecorder.ondataavailable = (event) => { if (event.data.size > 0) audioChunks.push(event.data); };
+  mediaRecorder = new MediaRecorder(stream);
+  audioChunks = [];
+  mediaRecorder.ondataavailable = (event) => {
+    if (event.data && event.data.size > 0) audioChunks.push(event.data);
+  };
 
-    mediaRecorder.onstop = async () => {
-      stream.getTracks().forEach(track => track.stop());
-      if (cancelTranscription) return;
+  mediaRecorder.onstop = async () => {
+    stream.getTracks().forEach(track => track.stop());
+    if (cancelTranscription) return;
+    if (audioChunks.length === 0) {
+      alert("No audio captured. Please speak and try again.");
+      return;
+    }
 
-      if (audioChunks.length === 0) return;
-      const audioBlob = new Blob(audioChunks, { type: 'audio/webm' });
-      const input = document.getElementById("input");
-      const originalPlaceholder = input.placeholder;
-      input.placeholder = "Transcribing..."; input.disabled = true;
+    const audioBlob = new Blob(audioChunks, { type: 'audio/webm' });
+    const input = document.getElementById("input");
+    const originalPlaceholder = input.placeholder;
+    input.placeholder = "Transcribing...";
+    input.disabled = true;
 
-      const formData = new FormData();
-      formData.append("file", audioBlob, "audio.webm");
+    const formData = new FormData();
+    formData.append("file", audioBlob, "audio.webm");
 
-      try {
-        const token = localStorage.getItem("sb_access_token") || "";
-        const headersConfig = {};
-        if (token) headersConfig['Authorization'] = `Bearer ${token}`;
-        const response = await fetch("/chat", { method: "POST", headers: headersConfig, body: formData });
-        if (response.ok) {
-          const data = await response.json();
-          if (data.text) { input.value = (input.value + " " + data.text).trim(); autoExpand(input); }
-        } else throw new Error("API Error");
-      } catch (e) {
-        alert("Failed to transcribe audio.");
-      } finally {
-        input.placeholder = originalPlaceholder; input.disabled = false; input.focus();
+    try {
+      const token = localStorage.getItem("sb_access_token") || "";
+      const headersConfig = {};
+      if (token) headersConfig['Authorization'] = `Bearer ${token}`;
+      const response = await fetch("/chat", { method: "POST", headers: headersConfig, body: formData });
+      if (response.ok) {
+        const data = await response.json();
+        if (data.text) { input.value = (input.value + " " + data.text).trim(); autoExpand(input); }
+        else alert("Nothing was transcribed. Please try speaking again.");
+      } else {
+        const errData = await response.json().catch(() => ({}));
+        alert("Transcription failed: " + (errData.error || response.status));
       }
-    };
+    } catch (e) {
+      alert("Transcription error: " + e.message);
+    } finally {
+      input.placeholder = originalPlaceholder;
+      input.disabled = false;
+      input.focus();
+    }
+  };
 
-    mediaRecorder.start();
-  } catch (err) {
-    stream.getTracks().forEach(t => t.stop());
-    alert("Voice recording error: " + err.message);
-  }
+  mediaRecorder.start(100); // 100ms timeslice ensures chunks arrive even for short recordings
 }
 
 function cancelVoiceRecording() {
@@ -830,16 +839,13 @@ function cancelVoiceRecording() {
 }
 
 function processVoiceToType() {
-  // Works whether recording is still active or just started
   cancelTranscription = false;
   document.getElementById("voiceStatusText").textContent = "Transcribing...";
-  if (mediaRecorder && mediaRecorder.state === "recording") {
-    mediaRecorder.stop();
-  }
+  if (mediaRecorder && mediaRecorder.state === "recording") mediaRecorder.stop();
   document.getElementById("micBtn").classList.remove("listening");
   if (audioCtx) { audioCtx.close(); audioCtx = null; }
   cancelAnimationFrame(visualizerAnimationId);
-  setTimeout(() => { document.getElementById("voiceOverlay").style.display = "none"; }, 400);
+  setTimeout(() => { document.getElementById("voiceOverlay").style.display = "none"; }, 500);
 }
 
 let wavePhase = 0;
