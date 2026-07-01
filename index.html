@@ -750,83 +750,109 @@ async function toggleVoice() {
     return;
   }
 
+  if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+    alert("Mic Error: navigator.mediaDevices.getUserMedia is not available. This usually means the page is not served over HTTPS, or your browser does not support microphone access here.");
+    return;
+  }
+
   cancelTranscription = false;
+  let stream;
   try {
-    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+  } catch (err) {
+    alert("Mic Error (getUserMedia): " + err.name + " - " + err.message);
+    return;
+  }
+
+  try {
     audioCtx = new (window.AudioContext || window.webkitAudioContext)();
     analyser = audioCtx.createAnalyser();
     const source = audioCtx.createMediaStreamSource(stream);
     source.connect(analyser); analyser.fftSize = 256;
     dataArray = new Uint8Array(analyser.frequencyBinCount);
-    
+
     voiceOverlay.style.display = "flex";
     document.getElementById("voiceStatusText").textContent = "Listening...";
     micBtn.classList.add("listening"); drawVisualizer();
 
-  mediaRecorder = new MediaRecorder(stream);
-  audioChunks = [];
-  mediaRecorder.ondataavailable = (event) => {
-    if (event.data && event.data.size > 0) audioChunks.push(event.data);
-  };
+    mediaRecorder = new MediaRecorder(stream);
+    audioChunks = [];
+    mediaRecorder.ondataavailable = (event) => {
+      if (event.data && event.data.size > 0) audioChunks.push(event.data);
+    };
 
-  mediaRecorder.onstop = async () => {
-    stream.getTracks().forEach(track => track.stop());
-    if (cancelTranscription) return;
-    if (audioChunks.length === 0) {
-      alert("No audio captured. Please speak and try again.");
-      return;
-    }
+    mediaRecorder.onerror = (event) => {
+      alert("Mic Error (MediaRecorder): " + (event.error ? event.error.name + " - " + event.error.message : "Unknown recorder error"));
+      resetVoiceUI();
+      stream.getTracks().forEach(track => track.stop());
+    };
 
-    const mimeType = mediaRecorder.mimeType || 'audio/webm';
-    const ext = mimeType.includes('ogg') ? 'ogg' : mimeType.includes('mp4') ? 'mp4' : 'webm';
-    const audioBlob = new Blob(audioChunks, { type: mimeType });
-    const input = document.getElementById("input");
-    const originalPlaceholder = input.placeholder;
-    input.placeholder = "Transcribing...";
-    input.disabled = true;
+    mediaRecorder.onstop = async () => {
+      stream.getTracks().forEach(track => track.stop());
+      if (cancelTranscription) return;
+      if (audioChunks.length === 0) {
+        alert("No audio captured. Please speak and try again.");
+        return;
+      }
 
-    const formData = new FormData();
-    formData.append("file", audioBlob, "audio." + ext);
+      const mimeType = mediaRecorder.mimeType || 'audio/webm';
+      const ext = mimeType.includes('ogg') ? 'ogg' : mimeType.includes('mp4') ? 'mp4' : 'webm';
+      const audioBlob = new Blob(audioChunks, { type: mimeType });
+      const input = document.getElementById("input");
+      const originalPlaceholder = input.placeholder;
+      input.placeholder = "Transcribing...";
+      input.disabled = true;
 
-    try {
-      const token = localStorage.getItem("sb_access_token") || "";
-      const headersConfig = {};
-      if (token) headersConfig['Authorization'] = `Bearer ${token}`;
-      const response = await fetch("/chat", { method: "POST", headers: headersConfig, body: formData });
-      let data;
+      const formData = new FormData();
+      formData.append("file", audioBlob, "audio." + ext);
+
       try {
-        data = await response.json();
-      } catch (parseErr) {
-        throw new Error(response.status === 401 ? "Your session expired. Please log in again." : "Unexpected server response (status " + response.status + ").");
+        const token = localStorage.getItem("sb_access_token") || "";
+        const headersConfig = {};
+        if (token) headersConfig['Authorization'] = `Bearer ${token}`;
+        const response = await fetch("/chat", { method: "POST", headers: headersConfig, body: formData });
+        let data;
+        try {
+          data = await response.json();
+        } catch (parseErr) {
+          throw new Error(response.status === 401 ? "Your session expired. Please log in again." : "Unexpected server response (status " + response.status + ").");
+        }
+        if (data.error) {
+          alert("Transcription error: " + data.error);
+        } else if (data.text && data.text.trim()) {
+          input.value = (input.value + " " + data.text).trim();
+          autoExpand(input);
+        } else {
+          alert("Nothing was heard. Please speak clearly and try again.");
+        }
+      } catch (e) {
+        alert("Transcription failed: " + e.message);
+      } finally {
+        input.placeholder = originalPlaceholder;
+        input.disabled = false;
+        input.focus();
       }
-      if (data.error) {
-        alert("Transcription error: " + data.error);
-      } else if (data.text && data.text.trim()) {
-        input.value = (input.value + " " + data.text).trim();
-        autoExpand(input);
-      } else {
-        alert("Nothing was heard. Please speak clearly and try again.");
-      }
-    } catch (e) {
-      alert("Transcription failed: " + e.message);
-    } finally {
-      input.placeholder = originalPlaceholder;
-      input.disabled = false;
-      input.focus();
-    }
-  };
+    };
 
-  mediaRecorder.start(100);
-  } catch (err) { alert("Could not access microphone."); }
+    mediaRecorder.start(100);
+  } catch (err) {
+    alert("Mic Error (setup): " + err.name + " - " + err.message);
+    resetVoiceUI();
+    stream.getTracks().forEach(track => track.stop());
+  }
+}
+
+function resetVoiceUI() {
+  document.getElementById("micBtn").classList.remove("listening");
+  document.getElementById("voiceOverlay").style.display = "none";
+  if (audioCtx) { audioCtx.close(); audioCtx = null; }
+  cancelAnimationFrame(visualizerAnimationId);
 }
 
 function cancelVoiceRecording() {
   cancelTranscription = true;
   if (mediaRecorder && mediaRecorder.state === "recording") mediaRecorder.stop();
-  document.getElementById("micBtn").classList.remove("listening");
-  document.getElementById("voiceOverlay").style.display = "none";
-  if (audioCtx) { audioCtx.close(); audioCtx = null; }
-  cancelAnimationFrame(visualizerAnimationId);
+  resetVoiceUI();
 }
 
 function processVoiceToType() {
@@ -838,6 +864,9 @@ function processVoiceToType() {
     setTimeout(() => { document.getElementById("voiceOverlay").style.display = "none"; }, 250);
     if (audioCtx) { audioCtx.close(); audioCtx = null; }
     cancelAnimationFrame(visualizerAnimationId);
+  } else {
+    alert("Done Button Error: no active recording found. mediaRecorder state = " + (mediaRecorder ? mediaRecorder.state : "undefined") + ". Closing overlay.");
+    resetVoiceUI();
   }
 }
 
