@@ -12,6 +12,11 @@ export async function onRequest(context) {
     });
   }
 
+  // Determine content type up front so auth failures can be reported in the
+  // right format (JSON for voice transcription, SSE for chat).
+  const contentType = request.headers.get("content-type") || "";
+  const isVoiceRequest = contentType.includes("multipart/form-data");
+
   try {
     // --- SESSION AUTHORIZATION VALIDATION ---
     const authHeader = request.headers.get("Authorization");
@@ -21,18 +26,26 @@ export async function onRequest(context) {
       const verifyRes = await fetch(`${env.SUPABASE_URL}/auth/v1/user`, {
         headers: { 'apikey': env.SUPABASE_KEY, 'Authorization': `Bearer ${token}` }
       });
-      if (!verifyRes.ok) throw new Error("Unauthorized request. Please log in again.");
+      if (!verifyRes.ok) {
+        const authErr = "Unauthorized request. Please log in again.";
+        if (isVoiceRequest) {
+          return new Response(JSON.stringify({ error: authErr }), { status: 401, headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" } });
+        }
+        throw new Error(authErr);
+      }
       // Capture the email so we can log it with the request
       const userData = await verifyRes.json();
       userEmail = userData?.email || null;
     } else {
-      throw new Error("Missing authentication credentials.");
+      const missingErr = "Missing authentication credentials.";
+      if (isVoiceRequest) {
+        return new Response(JSON.stringify({ error: missingErr }), { status: 401, headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" } });
+      }
+      throw new Error(missingErr);
     }
 
-    const contentType = request.headers.get("content-type") || "";
-    
     // VOICE TRANSCRIPTION — has its own error handler returning JSON (not SSE)
-    if (contentType.includes("multipart/form-data")) {
+    if (isVoiceRequest) {
       try {
         const formData = await request.formData();
         const file = formData.get("file");
