@@ -1,3 +1,50 @@
+// --- IDENTITY SHORTCUT HELPERS ---
+// Matches short "who are you / who made you / are you gpt / are you gemini"
+// style questions so they can be answered without ever calling Groq/Gemini.
+// Kept deliberately narrow (short message + clear pattern) so real questions
+// that merely mention "you" don't get hijacked.
+function isIdentityQuestion(text) {
+  if (!text) return false;
+  const t = text.toLowerCase().trim().replace(/[?!.]+$/g, "");
+
+  // Only short messages qualify — avoids false-positives on longer real questions.
+  if (t.split(/\s+/).length > 8) return false;
+
+  const patterns = [
+    /^(who|what)\s+(are|r)\s+(you|u)$/,
+    /^(who|what)\s+(are|r)\s+(you|u)\s+(exactly|really)$/,
+    /^tell me (who|what) (you are|u are)$/,
+    /^(who|what)\s+made\s+(you|u)$/,
+    /^(who|what)\s+created\s+(you|u)$/,
+    /^(who|what)\s+built\s+(you|u)$/,
+    /^(who|what)\s+developed\s+(you|u)$/,
+    /^(who|what)('s| is)\s+your\s+(creator|maker|developer|owner|company)$/,
+    /^what('s| is)\s+your\s+name$/,
+    /^(are|r)\s+(you|u)\s+(chatgpt|gpt|gemini|claude|llama|groq|openai|google|meta|bard)$/,
+    /^which\s+(ai|model|llm)\s+(are|r)\s+(you|u)$/,
+    /^what\s+(ai|model|llm)\s+(are|r)\s+(you|u)$/,
+    /^introduce yourself$/,
+  ];
+
+  return patterns.some((re) => re.test(t));
+}
+
+// Emits the same SSE shape the frontend already expects from the
+// Groq/Gemini streaming path, so no client changes are needed.
+function streamLocalReply(text) {
+  const encoder = new TextEncoder();
+  const ssePayload = { choices: [{ delta: { content: text } }] };
+  const body = `data: ${JSON.stringify(ssePayload)}\n\ndata: [DONE]\n\n`;
+  return new Response(encoder.encode(body), {
+    headers: {
+      "Content-Type": "text/event-stream",
+      "Cache-Control": "no-cache",
+      "Connection": "keep-alive",
+      "Access-Control-Allow-Origin": "*",
+    },
+  });
+}
+
 export async function onRequest(context) {
   const { request, env } = context;
 
@@ -106,6 +153,17 @@ export async function onRequest(context) {
 
     if (conversationHistory.length === 0) {
       throw new Error("No valid message content found.");
+    }
+
+    // 1b. IDENTITY SHORTCUT — answer "who are you / who made you" locally.
+    // This never touches Groq or Gemini, so it costs 0 API input/output tokens
+    // no matter how many users ask it or how large the system prompt is.
+    const lastUserMsg = conversationHistory[conversationHistory.length - 1];
+    const lastUserText = (lastUserMsg.content || lastUserMsg.parts?.[0]?.text || "").trim();
+
+    if (isIdentityQuestion(lastUserText)) {
+      const identityReply = "I'm Expoloom AI, created by the Expoloom Team. I'm here to help — what can I do for you?";
+      return streamLocalReply(identityReply);
     }
 
     // 2. SMART ROUTER: IMAGE GEN vs GROQ vs GEMINI
