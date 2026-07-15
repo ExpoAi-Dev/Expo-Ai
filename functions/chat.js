@@ -29,6 +29,25 @@ function isIdentityQuestion(text) {
   return patterns.some((re) => re.test(t));
 }
 
+// Pool of varied identity responses — one is picked at random each time so
+// replies don't look like a single hardcoded canned message.
+const IDENTITY_REPLIES = [
+  "I am Expoloom AI, a creation of the Expoloom Team. I am designed to assist and provide information to users in a helpful and effective manner.",
+  "I'm Expoloom AI, built by the Expoloom Team. My purpose is to help you with information, tasks, and questions as effectively as I can.",
+  "My name is Expoloom AI. The Expoloom Team created me to assist users like you with helpful, accurate, and efficient support.",
+  "I go by Expoloom AI, developed by the Expoloom Team. I'm here to make finding information and getting things done easier for you.",
+  "I'm Expoloom AI — a product of the Expoloom Team, designed to be a helpful assistant for whatever you need.",
+  "You're talking to Expoloom AI, created and maintained by the Expoloom Team. I aim to be genuinely useful in every conversation.",
+  "I am Expoloom AI, made by the Expoloom Team. I exist to help users with information, answers, and everyday tasks.",
+  "Expoloom AI — that's me, brought to you by the Expoloom Team. I'm here to assist however I can.",
+  "I'm Expoloom AI, an assistant developed by the Expoloom Team to help people find information and get things done efficiently.",
+  "This is Expoloom AI speaking, created by the Expoloom Team. My job is to be a helpful, reliable assistant for you.",
+];
+
+function getRandomIdentityReply() {
+  return IDENTITY_REPLIES[Math.floor(Math.random() * IDENTITY_REPLIES.length)];
+}
+
 // Emits the same SSE shape the frontend already expects from the
 // Groq/Gemini streaming path, so no client changes are needed.
 function streamLocalReply(text) {
@@ -162,8 +181,7 @@ export async function onRequest(context) {
     const lastUserText = (lastUserMsg.content || lastUserMsg.parts?.[0]?.text || "").trim();
 
     if (isIdentityQuestion(lastUserText)) {
-      const identityReply = "I'm Expoloom AI, created by the Expoloom Team. I'm here to help — what can I do for you?";
-      return streamLocalReply(identityReply);
+      return streamLocalReply(getRandomIdentityReply());
     }
 
     // 2. SMART ROUTER: IMAGE GEN vs GROQ vs GEMINI
