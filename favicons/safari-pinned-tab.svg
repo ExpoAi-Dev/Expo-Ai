@@ -1,0 +1,25 @@
+<svg width="512" height="512" viewBox="0 0 512 512" xmlns="http://www.w3.org/2000/svg">
+  <!-- Safari pinned-tab icon: single black shape on transparent background.
+       Safari automatically recolors this to match the tab/toolbar theme. -->
+  <path d="
+    M 160 128
+    L 320 128
+    Q 344 128 344 152
+    Q 344 176 320 176
+    L 208 176
+    L 208 232
+    L 296 232
+    Q 320 232 320 256
+    Q 320 280 296 280
+    L 208 280
+    L 208 336
+    L 320 336
+    Q 344 336 344 360
+    Q 344 384 320 384
+    L 160 384
+    Q 136 384 136 360
+    L 136 152
+    Q 136 128 160 128
+    Z"
+    fill="#000000"/>
+</svg>

@@ -1,0 +1,44 @@
+<svg viewBox="0 0 512 512" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#6D28D9"/>
+      <stop offset="55%" stop-color="#4F46E5"/>
+      <stop offset="100%" stop-color="#0EA5E9"/>
+    </linearGradient>
+  </defs>
+
+  <!-- Background -->
+  <rect width="512" height="512" rx="104" fill="url(#bg)"/>
+
+  <!-- Bold, simplified E: thick strokes, wide gaps, big corner radius.
+       Built as ONE solid path so it never breaks apart when downscaled. -->
+  <path d="
+    M 160 128
+    L 320 128
+    Q 344 128 344 152
+    Q 344 176 320 176
+    L 208 176
+    L 208 232
+    L 296 232
+    Q 320 232 320 256
+    Q 320 280 296 280
+    L 208 280
+    L 208 336
+    L 320 336
+    Q 344 336 344 360
+    Q 344 384 320 384
+    L 160 384
+    Q 136 384 136 360
+    L 136 152
+    Q 136 128 160 128
+    Z"
+    fill="#FFFFFF"/>
+
+  <!-- Single bold spark, large enough to survive downscaling -->
+  <path d="M 372 96
+           C 378 130 386 138 420 144
+           C 386 150 378 158 372 192
+           C 366 158 358 150 324 144
+           C 358 138 366 130 372 96 Z"
+        fill="#FDE68A"/>
+</svg>
