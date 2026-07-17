@@ -153,6 +153,15 @@
     .message { margin: 8px 0; padding: 12px 16px; border-radius: 15px; max-width: 85%; word-break: break-word; line-height: 1.5; font-size: 15px; }
     .message.user { background: var(--user-msg-bg); color: var(--user-msg-text); border-bottom-right-radius: 2px; }
     .message.bot { background: var(--bot-msg-bg); color: var(--text-color); border-bottom-left-radius: 2px; }
+
+    .code-block-wrapper { margin: 10px 0; border-radius: 10px; overflow: hidden; border: 1px solid rgba(128,128,128,0.25); background: #1a1a1a; }
+    body:not(.dark-theme) .code-block-wrapper { background: #0d0d0d; }
+    .code-block-header { display: flex; align-items: center; justify-content: space-between; padding: 6px 12px; background: rgba(255,255,255,0.06); font-family: monospace; font-size: 12px; color: #b3b3b3; }
+    .code-block-copy { background: rgba(255,255,255,0.1); border: none; color: #e5e5e5; font-size: 12px; padding: 4px 10px; border-radius: 6px; cursor: pointer; }
+    .code-block-copy:hover { background: rgba(255,255,255,0.18); }
+    .code-block-pre { margin: 0; padding: 12px; overflow-x: auto; }
+    .code-block-pre code { font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace; font-size: 13px; line-height: 1.5; color: #e5e5e5; white-space: pre; }
+    .inline-code { font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace; background: rgba(128,128,128,0.18); padding: 1px 5px; border-radius: 4px; font-size: 0.9em; }
     
     .msg-action-tray { display: flex; gap: 4px; margin-top: -4px; margin-bottom: 12px; padding-left: 4px; opacity: 0; transition: opacity 0.2s; }
     .message-wrapper.bot:hover .msg-action-tray { opacity: 1; }
@@ -1054,6 +1063,74 @@ function selectAskOption(msgIndex, optionText) {
     askAI();
 }
 
+// Escapes raw HTML so any tags/attributes in AI responses are shown as text, never executed.
+function escapeHTML(str) {
+  return str
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
+// Converts AI response markdown into safe display HTML.
+// Fenced code blocks (```lang ... ```) are rendered as read-only, syntax-labeled
+// <pre><code> blocks with a Copy button -- never executed or injected as live DOM.
+let codeBlockCounter = 0;
+function formatMessageText(raw) {
+  if (!raw) return "";
+
+  const codeBlockRegex = /```([a-zA-Z0-9_+-]*)\n?([\s\S]*?)```/g;
+  let result = "";
+  let lastIndex = 0;
+  let match;
+
+  while ((match = codeBlockRegex.exec(raw)) !== null) {
+    // Text before this code block: escape, then apply light inline markdown, then convert newlines
+    const before = raw.slice(lastIndex, match.index);
+    result += formatInlineText(before);
+
+    const lang = (match[1] || "text").trim();
+    const code = match[2];
+    const blockId = `code-block-${++codeBlockCounter}`;
+
+    result += `
+      <div class="code-block-wrapper">
+        <div class="code-block-header">
+          <span class="code-block-lang">${escapeHTML(lang || "text")}</span>
+          <button class="code-block-copy" onclick="copyCodeBlock('${blockId}', this)">Copy</button>
+        </div>
+        <pre class="code-block-pre"><code id="${blockId}">${escapeHTML(code)}</code></pre>
+      </div>`;
+
+    lastIndex = codeBlockRegex.lastIndex;
+  }
+
+  // Remaining text after the last code block (or the whole string if none found)
+  result += formatInlineText(raw.slice(lastIndex));
+
+  return result;
+}
+
+// Handles plain text outside code fences: escapes HTML, then applies minimal
+// inline formatting (bold, inline code) and converts newlines to <br>.
+function formatInlineText(text) {
+  let escaped = escapeHTML(text);
+  escaped = escaped.replace(/`([^`\n]+)`/g, '<code class="inline-code">$1</code>');
+  escaped = escaped.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
+  return escaped.replace(/\n/g, '<br>');
+}
+
+function copyCodeBlock(blockId, btn) {
+  const codeEl = document.getElementById(blockId);
+  if (!codeEl) return;
+  navigator.clipboard.writeText(codeEl.textContent).then(() => {
+    const orig = btn.textContent;
+    btn.textContent = "Copied!";
+    setTimeout(() => { btn.textContent = orig; }, 1500);
+  });
+}
+
 function renderMessages() {
   const box = document.getElementById("chat"); 
   const headerActions = document.getElementById("mainHeaderActions");
@@ -1117,9 +1194,9 @@ function renderMessages() {
       msgDiv.innerHTML = `<img src="${msg.parts[0].text}" style="width: 100%; border-radius: 10px; display: block;" alt="AI Generated Image">`;
     } else if (askOptionsData) {
       msgDiv.style.display = textBeforeAsk ? "" : "none";
-      msgDiv.innerHTML = textBeforeAsk.replace(/\n/g, '<br>');
+      msgDiv.innerHTML = formatMessageText(textBeforeAsk);
     } else {
-      msgDiv.innerHTML = msg.parts[0].text.replace(/\n/g, '<br>');
+      msgDiv.innerHTML = formatMessageText(msg.parts[0].text);
     }
     
     wrapper.appendChild(msgDiv);
@@ -1246,6 +1323,27 @@ function showLoading() {
 }
 function removeLoading() { const l = document.getElementById("gemini-loader"); if(l) l.remove(); }
 
+// Detects genuine "generate me a picture" requests while ignoring words like
+// "create"/"image"/"generate" when they appear in website, app, or code requests.
+function detectImageGenIntent(text) {
+  const t = text.toLowerCase();
+
+  // Strong signal this is a coding/website/app request, not an image request.
+  const buildContext = /\b(website|webpage|web page|landing page|app|application|component|button|form|api|function|script|code|html|css|javascript|react|backend|frontend|database|e-?commerce|ui|ux)\b/;
+  if (buildContext.test(t)) return false;
+
+  // Explicit "generate/create/draw/make/design ... image/picture/photo/logo/art..." phrasing.
+  const imageNouns = '(image|picture|photo|photograph|illustration|drawing|artwork|art|logo|icon|wallpaper|poster|banner|graphic|painting|sketch|avatar|thumbnail)';
+  const genVerbs = '(generate|create|make|draw|design|paint|render|produce|craft)';
+
+  const verbThenNoun = new RegExp(`\\b${genVerbs}\\b[\\w\\s,'-]{0,25}\\b${imageNouns}s?\\b`);
+  const nounThenGenVerb = new RegExp(`\\b${imageNouns}s?\\b[\\w\\s,'-]{0,25}\\b${genVerbs}\\b`);
+  const nounThenNoun = new RegExp(`\\b${imageNouns}s?\\b[\\w\\s,'-]{0,15}\\bof\\b`);
+  const directAsk = new RegExp(`\\b(show|give)\\s+me\\s+(a|an)\\s+${imageNouns}\\b`);
+
+  return verbThenNoun.test(t) || nounThenGenVerb.test(t) || nounThenNoun.test(t) || directAsk.test(t);
+}
+
 async function askAI() {
   const input = document.getElementById("input");
   const sendBtn = document.getElementById("sendBtn");
@@ -1255,7 +1353,7 @@ async function askAI() {
   const msgText = input.value.trim();
   if (!msgText && !pendingFile) return;
 
-  const mentionsImage = ['generate', 'image', 'picture', 'draw', 'create'].some(word => msgText.toLowerCase().includes(word));
+  const mentionsImage = detectImageGenIntent(msgText);
   if (mentionsImage && activeSpecial !== 'image_gen') {
     if (!currentChat || !chats[currentChat]) { currentChat = "chat_" + Date.now(); chats[currentChat] = { name: "New Chat", messages: [], pinned: false, timestamp: Date.now() }; }
     chats[currentChat].messages.push({ role: "user", parts: [{ text: msgText }] });
