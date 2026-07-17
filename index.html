@@ -257,7 +257,7 @@
     .settings-btn { width: 44px; height: 44px; display: flex; align-items: center; justify-content: center; background: var(--chat-item-bg); border-radius: 50%; cursor: pointer; color: var(--text-color); }
     .new-chat { width: auto; padding: 12px 24px; background: var(--accent-blue); border-radius: 999px; text-align: center; cursor: pointer; color: var(--btn-text); font-weight: bold; margin: 0; }
 
-    #sheetOverlay, #optionsOverlay, #chatActionOverlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.4); display: none; z-index: 1000; }
+    #sheetOverlay, #optionsOverlay, #chatActionOverlay, #settingsOverlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.4); display: none; z-index: 1000; }
     .modes-sheet, .options-sheet, .chat-action-sheet { position: fixed; bottom: -100%; left: 0; right: 0; background: var(--header-bg); border-top-left-radius: 25px; border-top-right-radius: 25px; transition: bottom 0.3s cubic-bezier(0.4, 0, 0.2, 1); z-index: 1001; padding-bottom: 40px; box-shadow: 0 -5px 15px rgba(0,0,0,0.2); }
     .modes-sheet.open, .options-sheet.open, .chat-action-sheet.open { bottom: 0; }
     .sheet-handle-area { width: 100%; padding: 15px 0; cursor: grab; }
@@ -267,8 +267,34 @@
     .check-mark { color: var(--accent-blue); font-weight: bold; font-size: 20px; display: none; }
     .mode-option.active .check-mark { display: block; }
 
-    .settings-panel { position: fixed; bottom: -100%; left: 0; right: 0; height: 85%; background: #EEEEEE; color: black; border-top-left-radius: 25px; border-top-right-radius: 25px; transition: bottom 0.3s ease; z-index: 100; padding: 25px; box-shadow: 0 -5px 20px rgba(0,0,0,0.3); }
+    .settings-panel { position: fixed; bottom: -100%; left: 0; right: 0; height: 88%; max-height: 720px; background: var(--bg-main); color: var(--text-color); border-top-left-radius: 20px; border-top-right-radius: 20px; transition: bottom 0.3s cubic-bezier(.32,.72,0,1); z-index: 100; box-shadow: 0 -8px 30px rgba(0,0,0,0.35); display: flex; flex-direction: column; }
     .settings-panel.open { bottom: 0; }
+    .settings-header { display: flex; align-items: center; justify-content: space-between; padding: 18px 20px 14px; border-bottom: 1px solid rgba(128,128,128,0.18); flex-shrink: 0; }
+    .settings-header h2 { font-size: 18px; font-weight: 700; margin: 0; }
+    .settings-close-btn { width: 32px; height: 32px; border-radius: 50%; border: none; background: var(--chip-bg); color: var(--text-color); font-size: 16px; cursor: pointer; display: flex; align-items: center; justify-content: center; }
+    .settings-body { flex: 1; overflow-y: auto; padding: 8px 16px 24px; -webkit-overflow-scrolling: touch; }
+    .settings-group { margin-top: 22px; }
+    .settings-group-title { font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; opacity: 0.5; padding: 0 6px 8px; }
+    .settings-card { background: var(--chat-item-bg); border-radius: 14px; overflow: hidden; }
+    .settings-row { display: flex; align-items: center; justify-content: space-between; gap: 14px; padding: 14px 16px; }
+    .settings-row + .settings-row { border-top: 1px solid rgba(128,128,128,0.14); }
+    .settings-row-icon { width: 34px; height: 34px; border-radius: 9px; background: var(--chip-bg); display: flex; align-items: center; justify-content: center; font-size: 16px; flex-shrink: 0; }
+    .settings-row-text { flex: 1; min-width: 0; }
+    .settings-row-label { font-size: 14.5px; font-weight: 600; }
+    .settings-row-desc { font-size: 12.5px; opacity: 0.6; margin-top: 2px; }
+    .settings-row-action { flex-shrink: 0; }
+    .settings-select { background: var(--bg-main); color: var(--text-color); border: 1px solid rgba(128,128,128,0.3); border-radius: 8px; padding: 6px 10px; font-size: 13px; }
+    .settings-btn-small { background: var(--chip-bg); color: var(--text-color); border: none; border-radius: 8px; padding: 7px 14px; font-size: 13px; font-weight: 600; cursor: pointer; }
+    .settings-btn-small.danger { background: rgba(239,68,68,0.14); color: #ef4444; }
+    .settings-chevron { opacity: 0.35; font-size: 13px; }
+    /* Toggle switch */
+    .settings-toggle { position: relative; width: 44px; height: 26px; flex-shrink: 0; }
+    .settings-toggle input { opacity: 0; width: 0; height: 0; }
+    .settings-toggle-track { position: absolute; inset: 0; background: rgba(128,128,128,0.35); border-radius: 999px; cursor: pointer; transition: background 0.2s; }
+    .settings-toggle-track::before { content: ""; position: absolute; width: 20px; height: 20px; left: 3px; top: 3px; background: #fff; border-radius: 50%; transition: transform 0.2s; box-shadow: 0 1px 3px rgba(0,0,0,0.3); }
+    .settings-toggle input:checked + .settings-toggle-track { background: var(--accent-blue); }
+    .settings-toggle input:checked + .settings-toggle-track::before { transform: translateX(18px); }
+    .settings-footer-text { text-align: center; font-size: 11.5px; opacity: 0.4; padding: 18px 10px 4px; line-height: 1.6; }
     
     .modal-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.6); display: none; z-index: 2000; align-items: center; justify-content: center; }
     .custom-modal-box { background: var(--header-bg); padding: 25px; border-radius: 15px; width: 300px; text-align: center; border: 1px solid rgba(128,128,128,0.3); box-shadow: 0 10px 25px rgba(0,0,0,0.3); }
@@ -421,12 +447,125 @@
   </div>
 </div>
 
+<div id="settingsOverlay" onclick="closeSettings()"></div>
 <div id="settingsPanel" class="settings-panel">
-  <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
-    <b style="font-size: 22px;">Settings</b>
-    <button onclick="closeSettings()" style="background:#ef4444; border:none; padding:10px; border-radius:50%; color:white;">✕</button>
+  <div class="settings-header">
+    <h2>Settings</h2>
+    <button class="settings-close-btn" onclick="closeSettings()">✕</button>
   </div>
-  <input type="checkbox" id="darkModeCheckbox" checked onchange="toggleDarkMode()"> Dark Mode
+
+  <div class="settings-body">
+
+    <div class="settings-group">
+      <div class="settings-group-title">Appearance</div>
+      <div class="settings-card">
+        <div class="settings-row">
+          <div class="settings-row-icon">🌙</div>
+          <div class="settings-row-text">
+            <div class="settings-row-label">Dark Mode</div>
+            <div class="settings-row-desc">Use a dark color theme</div>
+          </div>
+          <div class="settings-row-action">
+            <label class="settings-toggle">
+              <input type="checkbox" id="darkModeCheckbox" checked onchange="toggleDarkMode()">
+              <span class="settings-toggle-track"></span>
+            </label>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="settings-group">
+      <div class="settings-group-title">Chat Behavior</div>
+      <div class="settings-card">
+        <div class="settings-row">
+          <div class="settings-row-icon">⚡</div>
+          <div class="settings-row-text">
+            <div class="settings-row-label">Default Response Mode</div>
+            <div class="settings-row-desc">Used when starting a new chat</div>
+          </div>
+          <div class="settings-row-action">
+            <select class="settings-select" id="defaultModeSelect" onchange="setDefaultMode(this.value)">
+              <option value="ultrafast">Ultra Fast</option>
+              <option value="fast">Fast</option>
+              <option value="thinking">Thinking</option>
+              <option value="coder">Coder</option>
+              <option value="pro">Pro</option>
+            </select>
+          </div>
+        </div>
+        <div class="settings-row">
+          <div class="settings-row-icon">🔊</div>
+          <div class="settings-row-text">
+            <div class="settings-row-label">Sound Effects</div>
+            <div class="settings-row-desc">Play a sound on new messages</div>
+          </div>
+          <div class="settings-row-action">
+            <label class="settings-toggle">
+              <input type="checkbox" id="soundEffectsCheckbox" onchange="toggleSoundEffects()">
+              <span class="settings-toggle-track"></span>
+            </label>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="settings-group">
+      <div class="settings-group-title">Chat &amp; Data</div>
+      <div class="settings-card">
+        <div class="settings-row" onclick="exportAllChats()" style="cursor:pointer;">
+          <div class="settings-row-icon">⬇️</div>
+          <div class="settings-row-text">
+            <div class="settings-row-label">Export All Conversations</div>
+            <div class="settings-row-desc">Download your chats as a JSON file</div>
+          </div>
+          <div class="settings-chevron">›</div>
+        </div>
+        <div class="settings-row" onclick="openClearAllModal()" style="cursor:pointer;">
+          <div class="settings-row-icon">🗑️</div>
+          <div class="settings-row-text">
+            <div class="settings-row-label" style="color:#ef4444;">Clear All Conversations</div>
+            <div class="settings-row-desc">This cannot be undone</div>
+          </div>
+          <div class="settings-chevron">›</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="settings-group">
+      <div class="settings-group-title">About</div>
+      <div class="settings-card">
+        <div class="settings-row" onclick="window.open('/policies.html','_blank')" style="cursor:pointer;">
+          <div class="settings-row-icon">📄</div>
+          <div class="settings-row-text">
+            <div class="settings-row-label">Legal &amp; Privacy Policies</div>
+          </div>
+          <div class="settings-chevron">›</div>
+        </div>
+        <div class="settings-row">
+          <div class="settings-row-icon">ℹ️</div>
+          <div class="settings-row-text">
+            <div class="settings-row-label">Expoloom AI</div>
+            <div class="settings-row-desc">Version 1.0</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="settings-footer-text">Expoloom AI — your data stays in your account.</div>
+
+  </div>
+</div>
+
+<div id="clearAllOverlay" style="position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); display: none; z-index: 1100; align-items: center; justify-content: center;">
+  <div style="background: var(--bg-main); color: var(--text-color); padding: 24px; border-radius: 16px; width: 85%; max-width: 340px; text-align: center;">
+    <p style="font-weight: 700; font-size: 16px; margin: 0 0 8px;">Clear all conversations?</p>
+    <p style="font-size: 13.5px; opacity: 0.7; margin: 0 0 20px;">This will permanently delete every chat in your account. This cannot be undone.</p>
+    <div style="display:flex; gap:10px;">
+      <button onclick="closeClearAllModal()" style="flex:1; padding:10px; border-radius:8px; border:none; background: var(--chip-bg); color: var(--text-color); font-weight:600; cursor:pointer;">Cancel</button>
+      <button onclick="confirmClearAllChats()" style="flex:1; padding:10px; border-radius:8px; border:none; background:#ef4444; color:#fff; font-weight:600; cursor:pointer;">Delete All</button>
+    </div>
+  </div>
 </div>
 
 <script>
@@ -515,6 +654,23 @@ function signOutGoogle() {
 }
 
 window.onload = async () => {
+    // Apply saved theme preference (defaults to dark, matching the original hardcoded behavior)
+    const savedTheme = localStorage.getItem("darkTheme");
+    if (savedTheme === "false") {
+      document.body.classList.remove("dark-theme");
+    }
+
+    // Reflect the saved default response mode in the UI (button label + active row)
+    const modeLabels = { 'ultrafast': 'Ultra Fast', 'fast': 'Fast', 'thinking': 'Thinking', 'coder': 'Coder', 'pro': 'Pro' };
+    if (modeLabels[currentMode]) {
+      document.getElementById("modeBtn").innerText = modeLabels[currentMode];
+      const activeOpt = document.getElementById('opt-' + currentMode);
+      if (activeOpt) {
+        document.querySelectorAll('.modes-sheet .mode-option').forEach(el => el.classList.remove('active'));
+        activeOpt.classList.add('active');
+      }
+    }
+
     // Check local storage records from the new 2-page system
     const storedUser = localStorage.getItem("authUser") || localStorage.getItem("googleUser");
     const accessToken = localStorage.getItem("sb_access_token");
@@ -588,7 +744,7 @@ async function syncChatsFromAppwrite() {
 let chats = {};
 let currentChat = null; 
 let currentUserEmail = null;
-let currentMode = "ultrafast"; 
+let currentMode = localStorage.getItem("defaultMode") || "ultrafast"; 
 let activeSpecial = null;
 let ctxMsgText = null;
 let ctxMsgIndex = null;
@@ -695,8 +851,64 @@ function openOptions() { document.getElementById("optionsSheet").classList.add("
 function closeOptions() { document.getElementById("optionsSheet").classList.remove("open"); document.getElementById("optionsOverlay").style.display = "none"; }
 function openModes() { document.getElementById("modesSheet").classList.add("open"); document.getElementById("sheetOverlay").style.display = "block"; }
 function closeModes() { document.getElementById("modesSheet").classList.remove("open"); document.getElementById("sheetOverlay").style.display = "none"; }
-function openSettings() { document.getElementById("settingsPanel").classList.add("open"); }
-function closeSettings() { document.getElementById("settingsPanel").classList.remove("open"); }
+function openSettings() {
+  document.getElementById("settingsPanel").classList.add("open");
+  document.getElementById("settingsOverlay").style.display = "block";
+  // Reflect current saved state in the controls
+  document.getElementById("darkModeCheckbox").checked = document.body.classList.contains("dark-theme");
+  document.getElementById("defaultModeSelect").value = localStorage.getItem("defaultMode") || "ultrafast";
+  document.getElementById("soundEffectsCheckbox").checked = localStorage.getItem("soundEffects") === "true";
+}
+function closeSettings() {
+  document.getElementById("settingsPanel").classList.remove("open");
+  document.getElementById("settingsOverlay").style.display = "none";
+}
+
+function setDefaultMode(mode) {
+  localStorage.setItem("defaultMode", mode);
+}
+
+function toggleSoundEffects() {
+  const on = document.getElementById("soundEffectsCheckbox").checked;
+  localStorage.setItem("soundEffects", on ? "true" : "false");
+}
+
+function exportAllChats() {
+  if (!currentUserEmail) { alert("Please sign in to export your conversations."); return; }
+  const data = JSON.stringify(chats, null, 2);
+  const blob = new Blob([data], { type: "application/json" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `expoloom-ai-chats-${new Date().toISOString().slice(0,10)}.json`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
+function openClearAllModal() {
+  document.getElementById("clearAllOverlay").style.display = "flex";
+}
+function closeClearAllModal() {
+  document.getElementById("clearAllOverlay").style.display = "none";
+}
+async function confirmClearAllChats() {
+  const idsToDelete = Object.keys(chats);
+  chats = {};
+  currentChat = null;
+  save();
+  renderChats();
+  renderMessages();
+  createNewChat();
+  closeClearAllModal();
+  closeSettings();
+  if (currentUserEmail) {
+    for (const id of idsToDelete) {
+      try { await databases.deleteDocument(APPWRITE_DATABASE_ID, APPWRITE_COLLECTION_ID, id); } catch(e) {}
+    }
+  }
+}
 
 function openChatActionSheet() { 
   const pinText = document.getElementById("actionSheetPinText");
@@ -944,7 +1156,11 @@ function toggleMenu() {
   else { sidebar.classList.toggle("open"); sidebar.classList.remove("closed"); }
 }
 
-function toggleDarkMode() { document.body.classList.toggle("dark-theme", document.getElementById("darkModeCheckbox").checked); }
+function toggleDarkMode() {
+  const on = document.getElementById("darkModeCheckbox").checked;
+  document.body.classList.toggle("dark-theme", on);
+  localStorage.setItem("darkTheme", on ? "true" : "false");
+}
 function toggleAccount(e) { e.stopPropagation(); const p = document.getElementById("accountPanel"); p.style.display = (p.style.display === "block") ? "none" : "block"; }
 
 function getLocalTimestamp(ts) {
