@@ -1329,19 +1329,22 @@ function detectImageGenIntent(text) {
   const t = text.toLowerCase();
 
   // Strong signal this is a coding/website/app request, not an image request.
-  const buildContext = /\b(website|webpage|web page|landing page|app|application|component|button|form|api|function|script|code|html|css|javascript|react|backend|frontend|database|e-?commerce|ui|ux)\b/;
+  const buildContext = /\b(website|webpage|web page|landing page|app|application|component|button|form|api|function|script|code|html|css|javascript|react|backend|frontend|database|e-?commerce|ui|ux|svg|svj|favicon)\b/;
   if (buildContext.test(t)) return false;
 
-  // Explicit "generate/create/draw/make/design ... image/picture/photo/logo/art..." phrasing.
-  const imageNouns = '(image|picture|photo|photograph|illustration|drawing|artwork|art|logo|icon|wallpaper|poster|banner|graphic|painting|sketch|avatar|thumbnail)';
+  // Explicit "generate/create/draw/make/design ... image/picture/photo/art..." phrasing.
+  // Note: "icon" and "logo" are deliberately excluded -- in a coding assistant these are
+  // almost always requested as SVG/code assets (e.g. "create an SVG icon"), not generated
+  // raster images, so including them caused false positives on legitimate coding requests.
+  const imageNouns = '(image|picture|photo|photograph|illustration|drawing|artwork|art|wallpaper|poster|banner|graphic|painting|sketch|avatar|thumbnail)';
   const genVerbs = '(generate|create|make|draw|design|paint|render|produce|craft)';
 
   const verbThenNoun = new RegExp(`\\b${genVerbs}\\b[\\w\\s,'-]{0,25}\\b${imageNouns}s?\\b`);
   const nounThenGenVerb = new RegExp(`\\b${imageNouns}s?\\b[\\w\\s,'-]{0,25}\\b${genVerbs}\\b`);
-  const nounThenNoun = new RegExp(`\\b${imageNouns}s?\\b[\\w\\s,'-]{0,15}\\bof\\b`);
+  const nounThenOf = new RegExp(`\\b${imageNouns}s?\\b[\\w\\s,'-]{0,15}\\bof\\b`);
   const directAsk = new RegExp(`\\b(show|give)\\s+me\\s+(a|an)\\s+${imageNouns}\\b`);
 
-  return verbThenNoun.test(t) || nounThenGenVerb.test(t) || nounThenNoun.test(t) || directAsk.test(t);
+  return verbThenNoun.test(t) || nounThenGenVerb.test(t) || nounThenOf.test(t) || directAsk.test(t);
 }
 
 async function askAI() {
