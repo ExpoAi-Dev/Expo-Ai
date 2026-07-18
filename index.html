@@ -460,7 +460,7 @@
       <div class="settings-group-title">Appearance</div>
       <div class="settings-card">
         <div class="settings-row">
-          <div class="settings-row-icon">🌙</div>
+          <div class="settings-row-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg></div>
           <div class="settings-row-text">
             <div class="settings-row-label">Dark Mode</div>
             <div class="settings-row-desc">Use a dark color theme</div>
@@ -479,7 +479,7 @@
       <div class="settings-group-title">Chat Behavior</div>
       <div class="settings-card">
         <div class="settings-row">
-          <div class="settings-row-icon">⚡</div>
+          <div class="settings-row-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M13 2L4.5 14h6L10 22l9.5-13H13.5z"/></svg></div>
           <div class="settings-row-text">
             <div class="settings-row-label">Default Response Mode</div>
             <div class="settings-row-desc">Used when starting a new chat</div>
@@ -495,7 +495,7 @@
           </div>
         </div>
         <div class="settings-row">
-          <div class="settings-row-icon">🔊</div>
+          <div class="settings-row-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 5 6 9H2v6h4l5 4z"/><path d="M15.54 8.46a5 5 0 0 1 0 7.07"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14"/></svg></div>
           <div class="settings-row-text">
             <div class="settings-row-label">Sound Effects</div>
             <div class="settings-row-desc">Play a sound on new messages</div>
@@ -514,7 +514,7 @@
       <div class="settings-group-title">Chat &amp; Data</div>
       <div class="settings-card">
         <div class="settings-row" onclick="exportAllChats()" style="cursor:pointer;">
-          <div class="settings-row-icon">⬇️</div>
+          <div class="settings-row-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg></div>
           <div class="settings-row-text">
             <div class="settings-row-label">Export All Conversations</div>
             <div class="settings-row-desc">Download your chats as a JSON file</div>
@@ -522,7 +522,7 @@
           <div class="settings-chevron">›</div>
         </div>
         <div class="settings-row" onclick="openClearAllModal()" style="cursor:pointer;">
-          <div class="settings-row-icon">🗑️</div>
+          <div class="settings-row-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg></div>
           <div class="settings-row-text">
             <div class="settings-row-label" style="color:#ef4444;">Clear All Conversations</div>
             <div class="settings-row-desc">This cannot be undone</div>
@@ -536,17 +536,17 @@
       <div class="settings-group-title">About</div>
       <div class="settings-card">
         <div class="settings-row" onclick="window.open('/policies.html','_blank')" style="cursor:pointer;">
-          <div class="settings-row-icon">📄</div>
+          <div class="settings-row-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="8" y1="13" x2="16" y2="13"/><line x1="8" y1="17" x2="16" y2="17"/></svg></div>
           <div class="settings-row-text">
             <div class="settings-row-label">Legal &amp; Privacy Policies</div>
           </div>
           <div class="settings-chevron">›</div>
         </div>
         <div class="settings-row">
-          <div class="settings-row-icon">ℹ️</div>
+          <div class="settings-row-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg></div>
           <div class="settings-row-text">
             <div class="settings-row-label">Expoloom AI</div>
-            <div class="settings-row-desc">Version 1.0</div>
+            <div class="settings-row-desc" id="appVersionText">Version 1.1</div>
           </div>
         </div>
       </div>
@@ -654,6 +654,10 @@ function signOutGoogle() {
 }
 
 window.onload = async () => {
+    // Keep the displayed version in sync with APP_VERSION, so the two never drift apart
+    const versionEl = document.getElementById("appVersionText");
+    if (versionEl) versionEl.textContent = `Version ${APP_VERSION}`;
+
     // Apply saved theme preference (defaults to dark, matching the original hardcoded behavior)
     const savedTheme = localStorage.getItem("darkTheme");
     if (savedTheme === "false") {
@@ -740,6 +744,9 @@ async function syncChatsFromAppwrite() {
     }
   } catch (err) {}
 }
+
+// <-- increase this number by 0.1 every time you make any changes in whole code-->
+const APP_VERSION = "1.1";
 
 let chats = {};
 let currentChat = null; 
