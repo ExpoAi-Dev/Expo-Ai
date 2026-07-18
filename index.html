@@ -507,6 +507,19 @@
             </label>
           </div>
         </div>
+        <div class="settings-row">
+          <div class="settings-row-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg></div>
+          <div class="settings-row-text">
+            <div class="settings-row-label">Notify When Ready</div>
+            <div class="settings-row-desc" id="notifyRowDesc">Notify me when a response finishes while I'm away</div>
+          </div>
+          <div class="settings-row-action">
+            <label class="settings-toggle">
+              <input type="checkbox" id="notifyCheckbox" onchange="toggleNotifications()">
+              <span class="settings-toggle-track"></span>
+            </label>
+          </div>
+        </div>
       </div>
     </div>
 
@@ -746,7 +759,54 @@ async function syncChatsFromAppwrite() {
 }
 
 // <-- increase this number by 0.1 every time you make any changes in whole code-->
-const APP_VERSION = "1.1";
+const APP_VERSION = "1.2";
+
+// Register the service worker that delivers "response ready" notifications
+// reliably even when the tab is backgrounded. Registration is safe to call
+// unconditionally; it's a no-op if the browser doesn't support it.
+let swRegistration = null;
+if ("serviceWorker" in navigator) {
+  navigator.serviceWorker.register("/sw.js")
+    .then((reg) => { swRegistration = reg; })
+    .catch((err) => { console.error("Service worker registration failed:", err); });
+}
+
+function notificationsEnabled() {
+  return localStorage.getItem("notifyOnResponse") === "true";
+}
+
+// Sends a "response ready" notification via the service worker, but only if:
+// - the user has opted in via Settings, AND
+// - the browser has granted Notification permission, AND
+// - the tab is currently hidden (no point notifying about something already on screen)
+function notifyResponseReady(chatId, previewText) {
+  if (!notificationsEnabled()) return;
+  if (typeof Notification === "undefined" || Notification.permission !== "granted") return;
+  if (document.visibilityState !== "hidden") return;
+
+  const body = (previewText || "").replace(/\s+/g, " ").trim().slice(0, 120) || "Your response is ready.";
+  if (swRegistration) {
+    swRegistration.active && swRegistration.active.postMessage({
+      type: "SHOW_RESPONSE_NOTIFICATION",
+      title: "Expoloom AI",
+      body: body,
+      chatId: chatId
+    });
+  } else {
+    // Fallback for browsers/situations where the service worker isn't ready yet
+    try { new Notification("Expoloom AI", { body: body, icon: "/favicons/android-chrome-192x192.png" }); } catch (e) {}
+  }
+}
+
+// Requests Notification permission (must be called from a user gesture, e.g. a
+// toggle switch's onchange). Returns true if permission ends up granted.
+async function requestNotificationPermission() {
+  if (typeof Notification === "undefined") return false;
+  if (Notification.permission === "granted") return true;
+  if (Notification.permission === "denied") return false;
+  const result = await Notification.requestPermission();
+  return result === "granted";
+}
 
 let chats = {};
 let currentChat = null; 
@@ -762,6 +822,16 @@ let abortController = null;
 let isGenerating = false;
 let chatToDelete = null; 
 let chatToRename = null; 
+
+// Safety net: the instant the tab is hidden/backgrounded (user minimizes Chrome, switches
+// apps, etc.), force-save immediately. This catches the moment between stream chunks where
+// the throttled save inside the read loop hasn't fired yet.
+document.addEventListener("visibilitychange", () => {
+  if (document.visibilityState === "hidden" && isGenerating && currentChat && chats[currentChat]) {
+    chats[currentChat].timestamp = Date.now();
+    save();
+  }
+});
 
 let syncTimeout;
 let syncCountdownInterval;
@@ -865,6 +935,23 @@ function openSettings() {
   document.getElementById("darkModeCheckbox").checked = document.body.classList.contains("dark-theme");
   document.getElementById("defaultModeSelect").value = localStorage.getItem("defaultMode") || "ultrafast";
   document.getElementById("soundEffectsCheckbox").checked = localStorage.getItem("soundEffects") === "true";
+
+  // Notifications: reflect the real combined state (saved preference AND actual
+  // browser permission), since permission can be revoked outside the app at any time.
+  const notifyCheckbox = document.getElementById("notifyCheckbox");
+  const notifyDesc = document.getElementById("notifyRowDesc");
+  const notifSupported = typeof Notification !== "undefined";
+  if (!notifSupported) {
+    notifyCheckbox.checked = false;
+    notifyCheckbox.disabled = true;
+    notifyDesc.textContent = "Not supported in this browser";
+  } else if (Notification.permission === "denied") {
+    notifyCheckbox.checked = false;
+    notifyDesc.textContent = "Blocked — enable notifications for this site in your browser settings";
+  } else {
+    notifyCheckbox.checked = notificationsEnabled() && Notification.permission === "granted";
+    notifyDesc.textContent = "Notify me when a response finishes while I'm away";
+  }
 }
 function closeSettings() {
   document.getElementById("settingsPanel").classList.remove("open");
@@ -878,6 +965,27 @@ function setDefaultMode(mode) {
 function toggleSoundEffects() {
   const on = document.getElementById("soundEffectsCheckbox").checked;
   localStorage.setItem("soundEffects", on ? "true" : "false");
+}
+
+async function toggleNotifications() {
+  const checkbox = document.getElementById("notifyCheckbox");
+  const desc = document.getElementById("notifyRowDesc");
+
+  if (checkbox.checked) {
+    const granted = await requestNotificationPermission();
+    if (!granted) {
+      // Permission denied or blocked — don't silently pretend it's on.
+      checkbox.checked = false;
+      localStorage.setItem("notifyOnResponse", "false");
+      desc.textContent = "Blocked — enable notifications for this site in your browser settings";
+      return;
+    }
+    localStorage.setItem("notifyOnResponse", "true");
+    desc.textContent = "Notify me when a response finishes while I'm away";
+  } else {
+    localStorage.setItem("notifyOnResponse", "false");
+    desc.textContent = "Notify me when a response finishes while I'm away";
+  }
 }
 
 function exportAllChats() {
@@ -1631,6 +1739,7 @@ async function askAI() {
     } else if (res.ok && res.body) {
       const reader = res.body.getReader(); const decoder = new TextDecoder();
       let botMessage = { role: "model", parts: [{ text: "" }] }; chats[currentChat].messages.push(botMessage);
+      let lastSaveTime = 0;
       while (true) {
         const { done, value } = await reader.read(); if (done) break;
         const lines = decoder.decode(value, { stream: true }).split("\n");
@@ -1638,6 +1747,16 @@ async function askAI() {
           if (line.startsWith("data: ") && line !== "data: [DONE]") {
             try { botMessage.parts[0].text += (JSON.parse(line.substring(6)).choices[0]?.delta?.content || ""); renderMessages(); } catch (e) {}
           }
+        }
+        // Persist progress as it streams in, so a backgrounded/suspended tab never loses
+        // more than a fraction of a second of the response. localStorage writes are cheap,
+        // but throttled here to avoid hundreds of writes per second on very fast streams.
+        // If the tab just went hidden (e.g. user minimized Chrome), save immediately regardless.
+        const now = Date.now();
+        if (document.visibilityState === "hidden" || now - lastSaveTime > 400) {
+          chats[currentChat].timestamp = now;
+          save();
+          lastSaveTime = now;
         }
       }
     } else throw new Error(`Unexpected response (status ${res.status})`);
@@ -1653,6 +1772,12 @@ async function askAI() {
     isGenerating = false; sendBtn.innerHTML = "Send"; sendBtn.style.backgroundColor = "var(--accent-blue)";
     input.disabled = false; input.placeholder = "Ask anything..."; 
     chats[currentChat].timestamp = Date.now(); save(); renderMessages(); renderChats(); saveChatToAppwrite(currentChat, chats[currentChat]);
+
+    // Notify the user if their response finished while they were away from the tab.
+    const lastMsg = chats[currentChat].messages[chats[currentChat].messages.length - 1];
+    if (lastMsg && lastMsg.role === "model" && lastMsg.parts[0] && !lastMsg.parts[0].isImage) {
+      notifyResponseReady(currentChat, lastMsg.parts[0].text);
+    }
   }
 }
 
