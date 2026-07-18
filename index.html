@@ -152,6 +152,7 @@
     .message-wrapper.bot { align-items: flex-start; }
     .message { margin: 8px 0; padding: 12px 16px; border-radius: 15px; max-width: 85%; word-break: break-word; line-height: 1.5; font-size: 15px; }
     .message.user { background: var(--user-msg-bg); color: var(--user-msg-text); border-bottom-right-radius: 2px; }
+    .offline-pending-tag { align-self: flex-end; display: flex; align-items: center; gap: 5px; font-size: 11.5px; opacity: 0.55; margin: 4px 4px 0; }
     .message.bot { background: var(--bot-msg-bg); color: var(--text-color); border-bottom-left-radius: 2px; }
 
     .code-block-wrapper { margin: 10px 0; border-radius: 10px; overflow: hidden; border: 1px solid rgba(128,128,128,0.25); background: #1a1a1a; }
@@ -642,6 +643,10 @@ function applyUserData(user) {
 
     syncChatsFromAppwrite();
     setupRealtime();
+
+    // Flush any messages that were queued while offline in a previous session
+    // (e.g. the app was closed before connectivity returned).
+    if (navigator.onLine) processOfflineQueue();
 }
 
 function signOutGoogle() {
@@ -759,7 +764,7 @@ async function syncChatsFromAppwrite() {
 }
 
 // <-- increase this number by 0.1 every time you make any changes in whole code-->
-const APP_VERSION = "1.2";
+const APP_VERSION = "1.3";
 
 // Register the service worker that delivers "response ready" notifications
 // reliably even when the tab is backgrounded. Registration is safe to call
@@ -807,6 +812,76 @@ async function requestNotificationPermission() {
   const result = await Notification.requestPermission();
   return result === "granted";
 }
+
+// ---------------------------------------------------------------------------
+// Offline message queue
+//
+// If the user sends a message with no connection, the request never has a
+// chance to reach the server. Instead of failing immediately, we save the
+// message to a persistent queue (localStorage, so it survives a page reload)
+// and mark it "pending" in the chat. The moment the browser reports it's back
+// online, the queue is flushed automatically, in order, and each message is
+// sent for real. If the tab is backgrounded when a queued reply arrives, the
+// existing notification system lets the user know it's ready.
+// ---------------------------------------------------------------------------
+
+function getOfflineQueue() {
+  try { return JSON.parse(localStorage.getItem("offlineQueue_" + currentUserEmail) || "[]"); }
+  catch (e) { return []; }
+}
+
+function setOfflineQueue(queue) {
+  if (!currentUserEmail) return;
+  localStorage.setItem("offlineQueue_" + currentUserEmail, JSON.stringify(queue));
+}
+
+// Adds a message to the offline queue and shows it in the chat immediately
+// with a "pending" marker, so the user sees their message wasn't lost.
+function enqueueOfflineMessage(chatId, combinedText, mode) {
+  const queueItem = { id: "pending_" + Date.now() + "_" + Math.random().toString(36).slice(2, 8), chatId, text: combinedText, mode, createdAt: Date.now() };
+  const queue = getOfflineQueue();
+  queue.push(queueItem);
+  setOfflineQueue(queue);
+
+  chats[chatId].messages.push({ role: "user", parts: [{ text: combinedText }], pendingId: queueItem.id, offlinePending: true });
+  chats[chatId].timestamp = Date.now();
+  save(); renderMessages(); renderChats();
+}
+
+let isProcessingQueue = false;
+
+// Called automatically when the browser regains connectivity. Sends every
+// queued message in the order it was created.
+async function processOfflineQueue() {
+  if (isProcessingQueue) return;
+  if (!navigator.onLine) return;
+  const queue = getOfflineQueue();
+  if (queue.length === 0) return;
+
+  isProcessingQueue = true;
+  try {
+    for (const item of queue) {
+      // Skip items whose chat was deleted while offline
+      if (!chats[item.chatId]) { removeFromOfflineQueue(item.id); continue; }
+
+      // Clear the pending marker on the matching message before sending for real
+      const pendingMsg = chats[item.chatId].messages.find(m => m.pendingId === item.id);
+      if (pendingMsg) { delete pendingMsg.offlinePending; delete pendingMsg.pendingId; }
+
+      removeFromOfflineQueue(item.id);
+      await sendToServerAndProcess(item.chatId, item.text, item.mode, /*alreadyAddedUserMsg=*/true);
+    }
+  } finally {
+    isProcessingQueue = false;
+  }
+}
+
+function removeFromOfflineQueue(id) {
+  const queue = getOfflineQueue().filter(q => q.id !== id);
+  setOfflineQueue(queue);
+}
+
+window.addEventListener("online", () => { processOfflineQueue(); });
 
 let chats = {};
 let currentChat = null; 
@@ -1532,6 +1607,15 @@ function renderMessages() {
     
     wrapper.appendChild(msgDiv);
 
+    // Offline-queued message: show a small "waiting to send" indicator until it
+    // actually goes out once connectivity returns.
+    if (isUser && msg.offlinePending) {
+      const pendingTag = document.createElement("div");
+      pendingTag.className = "offline-pending-tag";
+      pendingTag.innerHTML = `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg> Waiting for connection…`;
+      wrapper.appendChild(pendingTag);
+    }
+
     // Render ask-options as a tappable popup card
     if (askOptionsData) {
       const alreadyAnswered = !!msg.askOptionAnswered;
@@ -1703,13 +1787,37 @@ async function askAI() {
       chats[currentChat] = { name: "New Chat", messages: [], pinned: false, timestamp: Date.now() };
   }
 
-  chats[currentChat].messages.push({ role: "user", parts: [{ text: combined }] });
-  renderChats(); renderMessages(); input.value = ""; input.style.height = "auto"; clearAttachment(); showLoading();
+  const chatId = currentChat;
+  const mode = activeSpecial || currentMode;
+  input.value = ""; input.style.height = "auto"; clearAttachment();
+
+  // No connection right now: queue the message instead of letting the request fail.
+  // It'll be sent automatically the instant the browser reports it's back online.
+  if (!navigator.onLine) {
+    enqueueOfflineMessage(chatId, combined, mode);
+    return;
+  }
+
+  chats[chatId].messages.push({ role: "user", parts: [{ text: combined }] });
+  renderChats(); renderMessages(); showLoading();
+  await sendToServerAndProcess(chatId, combined, mode, /*alreadyAddedUserMsg=*/true);
+}
+
+// Sends a message to the server and streams/processes the response. Shared by
+// both the normal send path and the offline-queue flush, so a message that
+// was queued while offline goes through exactly the same handling once it's
+// actually sent. If alreadyAddedUserMsg is true, the user's message bubble is
+// assumed to already be in chats[chatId].messages (both callers ensure this).
+async function sendToServerAndProcess(chatId, msgText, mode, alreadyAddedUserMsg) {
+  const input = document.getElementById("input");
+  const sendBtn = document.getElementById("sendBtn");
+  currentChat = chatId;
 
   isGenerating = true; abortController = new AbortController();
   sendBtn.innerHTML = "■ Stop"; sendBtn.style.backgroundColor = "#ef4444"; input.disabled = true; input.placeholder = "Generating response...";
+  showLoading();
 
-  let conversationPayload = [...chats[currentChat].messages];
+  let conversationPayload = [...chats[chatId].messages];
   conversationPayload.unshift({ role: 'system', parts: [{ text: 'Your name is Expoloom AI. You were created by the Expoloom Team. Always identify as Expoloom AI and never as a Google model. When you need to ask the user a clarifying question that has a small set of clear, distinct answer choices (2-5 options), present it using this exact format: <ask-options>{"question":"Your question here","options":["Option 1","Option 2","Option 3"]}</ask-options> — put this tag on its own, with nothing else around it, only when a multiple-choice question genuinely fits. For open-ended questions or normal conversation, just respond normally in plain text.' }] });
 
   try {
@@ -1725,7 +1833,7 @@ async function askAI() {
     const res = await fetch("/chat", { 
       method: 'POST', 
       headers: headersConfig, 
-      body: JSON.stringify({ messages: conversationPayload, mode: activeSpecial || currentMode }), 
+      body: JSON.stringify({ messages: conversationPayload, mode: mode }), 
       signal: abortController.signal 
     });
     const contentType = res.headers.get("content-type"); removeLoading();
@@ -1733,12 +1841,12 @@ async function askAI() {
     if (contentType && contentType.includes("application/json")) {
       const data = await res.json();
       if (res.ok) {
-        if (data.image) chats[currentChat].messages.push({ role: "model", parts: [{ text: data.image, isImage: true }] });
-        else if (data.candidates) chats[currentChat].messages.push(data.candidates[0].content);
+        if (data.image) chats[chatId].messages.push({ role: "model", parts: [{ text: data.image, isImage: true }] });
+        else if (data.candidates) chats[chatId].messages.push(data.candidates[0].content);
       } else throw new Error(data.error || `Server returned ${res.status}`);
     } else if (res.ok && res.body) {
       const reader = res.body.getReader(); const decoder = new TextDecoder();
-      let botMessage = { role: "model", parts: [{ text: "" }] }; chats[currentChat].messages.push(botMessage);
+      let botMessage = { role: "model", parts: [{ text: "" }] }; chats[chatId].messages.push(botMessage);
       let lastSaveTime = 0;
       while (true) {
         const { done, value } = await reader.read(); if (done) break;
@@ -1754,29 +1862,36 @@ async function askAI() {
         // If the tab just went hidden (e.g. user minimized Chrome), save immediately regardless.
         const now = Date.now();
         if (document.visibilityState === "hidden" || now - lastSaveTime > 400) {
-          chats[currentChat].timestamp = now;
+          chats[chatId].timestamp = now;
           save();
           lastSaveTime = now;
         }
       }
     } else throw new Error(`Unexpected response (status ${res.status})`);
-    if(chats[currentChat].messages.length <= 3 && chats[currentChat].name === "New Chat") chats[currentChat].name = msgText.substring(0, 15);
+    if(chats[chatId].messages.length <= 3 && chats[chatId].name === "New Chat") chats[chatId].name = msgText.substring(0, 15);
   } catch (e) {
     removeLoading();
     if (e.name === 'AbortError') console.log("Generation stopped.");
-    else {
+    else if (e instanceof TypeError && !navigator.onLine) {
+      // Connection dropped mid-request (as opposed to being offline from the start,
+      // which is caught earlier in askAI). Re-queue the message rather than showing
+      // a dead-end error -- it'll retry automatically once back online.
+      const mode2 = mode;
+      enqueueOfflineMessage(chatId, msgText, mode2);
+      console.log("Connection lost mid-request; message re-queued for retry.");
+    } else {
         console.error("askAI error:", e);
-        chats[currentChat].messages.push({ role: "model", parts: [{ text: "⚠️ Error: " + (e.message || "Expoloom AI is temporarily unavailable. Please try again.") }] });
+        chats[chatId].messages.push({ role: "model", parts: [{ text: "⚠️ Error: " + (e.message || "Expoloom AI is temporarily unavailable. Please try again.") }] });
     }
   } finally {
     isGenerating = false; sendBtn.innerHTML = "Send"; sendBtn.style.backgroundColor = "var(--accent-blue)";
     input.disabled = false; input.placeholder = "Ask anything..."; 
-    chats[currentChat].timestamp = Date.now(); save(); renderMessages(); renderChats(); saveChatToAppwrite(currentChat, chats[currentChat]);
+    chats[chatId].timestamp = Date.now(); save(); renderMessages(); renderChats(); saveChatToAppwrite(chatId, chats[chatId]);
 
     // Notify the user if their response finished while they were away from the tab.
-    const lastMsg = chats[currentChat].messages[chats[currentChat].messages.length - 1];
+    const lastMsg = chats[chatId].messages[chats[chatId].messages.length - 1];
     if (lastMsg && lastMsg.role === "model" && lastMsg.parts[0] && !lastMsg.parts[0].isImage) {
-      notifyResponseReady(currentChat, lastMsg.parts[0].text);
+      notifyResponseReady(chatId, lastMsg.parts[0].text);
     }
   }
 }
