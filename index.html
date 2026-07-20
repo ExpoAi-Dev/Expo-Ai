@@ -649,6 +649,13 @@ function applyUserData(user) {
     }
 
     currentUserEmail = user.email;
+
+    // Check the user's saved Ultra Power Deep Thinking preference (UPDT: "T"/"F").
+    // If they last left the app in Ultra Power mode, send them straight back to
+    // it on login instead of showing the normal app first. Checked in the
+    // background so it doesn't block the rest of initialization if it's slow.
+    checkUpdtAndRedirect();
+
     chats = JSON.parse(localStorage.getItem("chats_" + currentUserEmail)) || {};
     
     for (let id in chats) {
@@ -677,6 +684,28 @@ function applyUserData(user) {
     // Flush any messages that were queued while offline in a previous session
     // (e.g. the app was closed before connectivity returned).
     if (navigator.onLine) processOfflineQueue();
+}
+
+// Reads the UPDT flag from the server (falling back to a cached local copy if
+// offline) and redirects to the Ultra Power page if it's "T". A local cache is
+// kept in localStorage so the redirect can happen instantly on repeat visits
+// without waiting on a network round-trip every single time.
+async function checkUpdtAndRedirect() {
+  const cached = localStorage.getItem("updt_" + currentUserEmail);
+  if (cached === "T") { window.location.href = "/Ultra-Power-Deep-Thinking"; return; }
+
+  try {
+    const token = localStorage.getItem("sb_access_token") || "";
+    if (!token) return;
+    const res = await fetch("/api/preferences", { headers: { "Authorization": `Bearer ${token}` } });
+    if (!res.ok) return;
+    const data = await res.json();
+    localStorage.setItem("updt_" + currentUserEmail, data.updt || "F");
+    if (data.updt === "T") window.location.href = "/Ultra-Power-Deep-Thinking";
+  } catch (e) {
+    // Network error or offline: fall back silently to whatever's cached (already
+    // checked above), or just stay on the normal app if there's no cache yet.
+  }
 }
 
 function signOutGoogle() {
@@ -794,7 +823,7 @@ async function syncChatsFromAppwrite() {
 }
 
 // <-- increase this number by 0.1 every time you make any changes in whole code-->
-const APP_VERSION = "1.5";
+const APP_VERSION = "1.6";
 
 // Register the service worker that delivers "response ready" notifications
 // reliably even when the tab is backgrounded. Registration is safe to call
@@ -1163,9 +1192,30 @@ function declineUltraPower() {
   document.getElementById("ultraPowerOverlay").style.display = "none";
 }
 
-function confirmUltraPower() {
+async function confirmUltraPower() {
   document.getElementById("ultraPowerOverlay").style.display = "none";
+  await setUpdtPreference("T");
   window.location.href = "/Ultra-Power-Deep-Thinking";
+}
+
+// Saves the UPDT preference both locally (for instant redirects on future
+// visits without waiting on the network) and on the server via /api/preferences
+// (so the preference follows the user across devices/reinstalls).
+async function setUpdtPreference(value) {
+  if (currentUserEmail) localStorage.setItem("updt_" + currentUserEmail, value);
+  try {
+    const token = localStorage.getItem("sb_access_token") || "";
+    if (!token) return;
+    await fetch("/api/preferences", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "Authorization": `Bearer ${token}` },
+      body: JSON.stringify({ updt: value })
+    });
+  } catch (e) {
+    // If this fails (offline, etc.), the local cache above still ensures the
+    // correct behavior on this device; it'll sync to the server next time
+    // there's a successful connection and the user toggles the setting again.
+  }
 }
 
 function openChatActionSheet() { 
