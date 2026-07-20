@@ -794,7 +794,7 @@ async function syncChatsFromAppwrite() {
 }
 
 // <-- increase this number by 0.1 every time you make any changes in whole code-->
-const APP_VERSION = "1.5";
+const APP_VERSION = "1.6";
 
 // Register the service worker that delivers "response ready" notifications
 // reliably even when the tab is backgrounded. Registration is safe to call
@@ -1161,9 +1161,33 @@ function declineUltraPower() {
   document.getElementById("ultraPowerOverlay").style.display = "none";
 }
 
-function confirmUltraPower() {
+async function confirmUltraPower() {
   document.getElementById("ultraPowerOverlay").style.display = "none";
+  await setUpdtPreference("F");
   window.location.href = "/";
+}
+
+// Saves the UPDT preference both locally (for instant redirects on future
+// visits without waiting on the network) and on the server via /api/preferences
+// (so the preference follows the user across devices/reinstalls). Note: this
+// calls the *main app's* /api/preferences endpoint (same origin), which reads
+// the user's identity from their Supabase access_token -- the same token
+// works here since login is shared across both pages.
+async function setUpdtPreference(value) {
+  if (currentUserEmail) localStorage.setItem("updt_" + currentUserEmail, value);
+  try {
+    const token = localStorage.getItem("sb_access_token") || "";
+    if (!token) return;
+    await fetch("/api/preferences", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "Authorization": `Bearer ${token}` },
+      body: JSON.stringify({ updt: value })
+    });
+  } catch (e) {
+    // If this fails (offline, etc.), the local cache above still ensures the
+    // correct behavior on this device; it'll sync to the server next time
+    // there's a successful connection and the user toggles the setting again.
+  }
 }
 
 function openChatActionSheet() { 
