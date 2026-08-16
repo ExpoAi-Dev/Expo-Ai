@@ -214,6 +214,31 @@
     .voice-done-btn { background: #0d0d0d; color: #fff; box-shadow: 0 4px 24px rgba(0,0,0,0.35); }
     .voice-done-btn svg { width: 24px; height: 24px; }
     .voice-done-btn:active { transform: scale(0.92); }
+    .voice-minimize-btn {
+      position: absolute; top: 22px; right: 22px;
+      width: 40px; height: 40px; border-radius: 50%; border: none; cursor: pointer;
+      background: rgba(255,255,255,0.1); color: #fff;
+      display: flex; align-items: center; justify-content: center;
+      transition: transform 0.15s ease;
+    }
+    .voice-minimize-btn svg { width: 18px; height: 18px; }
+    .voice-minimize-btn:active { transform: scale(0.92); background: rgba(255,255,255,0.18); }
+
+    /* Minimized voice bar, docked above the input when the full overlay is collapsed */
+    .voice-mini-bar {
+      display: none; align-items: center; gap: 10px;
+      background: var(--accent-blue, #3b82f6); color: #fff;
+      border-radius: 14px; padding: 10px 14px; margin: 0 0 8px 0;
+      cursor: pointer; user-select: none;
+      animation: voiceFadeIn 0.2s ease;
+    }
+    .voice-mini-bar.active { display: flex; }
+    .voice-mini-dot { width: 9px; height: 9px; border-radius: 50%; background: #fff; flex-shrink: 0; animation: voiceMiniPulse 1.1s ease-in-out infinite; }
+    @keyframes voiceMiniPulse { 0%, 100% { opacity: 1; transform: scale(1); } 50% { opacity: 0.4; transform: scale(0.7); } }
+    .voice-mini-text { flex: 1; font-size: 14px; font-weight: 600; }
+    .voice-mini-btn { width: 30px; height: 30px; border-radius: 50%; border: none; cursor: pointer; display: flex; align-items: center; justify-content: center; background: rgba(255,255,255,0.2); color: #fff; flex-shrink: 0; }
+    .voice-mini-btn svg { width: 15px; height: 15px; }
+    .voice-mini-btn.voice-mini-done { background: #fff; color: var(--accent-blue, #3b82f6); }
 
     .empty-chat-container { display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100%; text-align: center; color: var(--text-color); }
     .empty-chat-title { font-size: 24px; font-weight: bold; margin-bottom: 30px; opacity: 0.9; }
@@ -424,6 +449,16 @@
       <span class="remove-attachment" onclick="clearAttachment()">✕</span>
     </div>
 
+    <div id="voiceMiniBar" class="voice-mini-bar" onclick="expandVoiceRecording()">
+      <span class="voice-mini-dot"></span>
+      <span class="voice-mini-text" id="voiceMiniText">Listening...</span>
+      <button class="voice-mini-btn" onclick="event.stopPropagation(); cancelVoiceRecording();" title="Cancel">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+      </button>
+      <button class="voice-mini-btn voice-mini-done" onclick="event.stopPropagation(); processVoiceToType();" title="Done">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+      </button>
+    </div>
     <div class="input-area">
       <textarea id="input" rows="1" placeholder="Ask anything..." oninput="autoExpand(this)"></textarea>
       <button class="send-btn" id="sendBtn" onclick="askAI()">Send</button>
@@ -1382,6 +1417,7 @@ async function toggleVoice() {
 function resetVoiceUI() {
   document.getElementById("micBtn").classList.remove("listening");
   document.getElementById("voiceOverlay").style.display = "none";
+  document.getElementById("voiceMiniBar").classList.remove("active");
   if (audioCtx) { audioCtx.close(); audioCtx = null; }
   cancelAnimationFrame(visualizerAnimationId);
 }
@@ -1396,15 +1432,37 @@ function processVoiceToType() {
   if (mediaRecorder && mediaRecorder.state === "recording") {
     cancelTranscription = false;
     document.getElementById("voiceStatusText").textContent = "Transcribing...";
+    document.getElementById("voiceMiniText").textContent = "Transcribing...";
     mediaRecorder.stop();
     document.getElementById("micBtn").classList.remove("listening");
-    setTimeout(() => { document.getElementById("voiceOverlay").style.display = "none"; }, 250);
+    setTimeout(() => {
+      document.getElementById("voiceOverlay").style.display = "none";
+      document.getElementById("voiceMiniBar").classList.remove("active");
+    }, 250);
     if (audioCtx) { audioCtx.close(); audioCtx = null; }
     cancelAnimationFrame(visualizerAnimationId);
   } else {
     alert("Done Button Error: no active recording found. mediaRecorder state = " + (mediaRecorder ? mediaRecorder.state : "undefined") + ". Closing overlay.");
     resetVoiceUI();
   }
+}
+
+// Collapse the full-screen listening overlay into a small pill docked above the
+// input box. Recording keeps running in the background (mediaRecorder/analyser
+// are untouched) so the user can keep browsing the chat while dictating.
+function minimizeVoiceRecording() {
+  if (!mediaRecorder || mediaRecorder.state !== "recording") return;
+  document.getElementById("voiceOverlay").style.display = "none";
+  const miniText = document.getElementById("voiceMiniText");
+  miniText.textContent = document.getElementById("voiceStatusText").textContent || "Listening...";
+  document.getElementById("voiceMiniBar").classList.add("active");
+}
+
+// Restore the full-screen overlay from the minimized pill.
+function expandVoiceRecording() {
+  if (!mediaRecorder || mediaRecorder.state !== "recording") return;
+  document.getElementById("voiceMiniBar").classList.remove("active");
+  document.getElementById("voiceOverlay").style.display = "flex";
 }
 
 let wavePhase = 0;
@@ -2033,6 +2091,9 @@ window.onclick = (e) => {
 <!-- Claude-style Voice Recording Overlay -->
 <div id="voiceOverlay" class="voice-overlay">
   <div class="voice-overlay-inner">
+    <button class="voice-minimize-btn" onclick="minimizeVoiceRecording()" title="Minimize">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><polyline points="6 9 12 15 18 9"/></svg>
+    </button>
     <div class="voice-status-text" id="voiceStatusText">Listening...</div>
     <canvas id="audioVisualizer" width="600" height="200"></canvas>
     <div class="voice-controls-row">
