@@ -234,13 +234,29 @@
       animation: voiceFadeIn 0.2s ease;
     }
     .voice-mini-bar.active { display: flex; }
-    .voice-mini-dot { width: 9px; height: 9px; border-radius: 50%; background: #fff; flex-shrink: 0; animation: voiceMiniPulse 1.1s ease-in-out infinite; }
-    @keyframes voiceMiniPulse { 0%, 100% { opacity: 1; transform: scale(1); } 50% { opacity: 0.4; transform: scale(0.7); } }
-    .voice-mini-text { flex: 1; font-size: 14px; font-weight: 600; color: #fff; }
+    .voice-mini-canvas { width: 60px; height: 28px; flex-shrink: 0; }
+    .voice-mini-text { flex: 1; font-size: 14px; font-weight: 500; color: #fff; }
     .voice-mini-btn { width: 30px; height: 30px; border-radius: 50%; border: none; cursor: pointer; display: flex; align-items: center; justify-content: center; background: rgba(255,255,255,0.2); color: #fff; flex-shrink: 0; }
     .voice-mini-btn svg { width: 15px; height: 15px; stroke: #fff; }
     .voice-mini-btn.voice-mini-done { background: #fff; }
     .voice-mini-btn.voice-mini-done svg { stroke: #0d0d0d; }
+
+    /* AI Live Mode — placeholder overlay (functionality to be added later) */
+    .live-mode-overlay {
+      display: none; position: fixed; inset: 0; z-index: 200;
+      background: #0d0d0d; color: #fff;
+      flex-direction: column; align-items: center; justify-content: center; gap: 28px;
+    }
+    .live-mode-overlay.active { display: flex; }
+    .live-close-btn {
+      position: absolute; top: 22px; right: 22px;
+      width: 40px; height: 40px; border-radius: 50%; border: none; cursor: pointer;
+      background: rgba(255,255,255,0.1); color: #fff;
+      display: flex; align-items: center; justify-content: center;
+    }
+    .live-close-btn svg { width: 18px; height: 18px; }
+    #liveLiquidCanvas { width: 150px; height: 150px; }
+    .live-status-text { font-size: 15px; font-weight: 600; margin: 0; }
 
     .empty-chat-container { display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100%; text-align: center; color: var(--text-color); }
     .empty-chat-title { font-size: 24px; font-weight: bold; margin-bottom: 30px; opacity: 0.9; }
@@ -452,7 +468,7 @@
     </div>
 
     <div id="voiceMiniBar" class="voice-mini-bar" onclick="expandVoiceRecording()">
-      <span class="voice-mini-dot"></span>
+      <canvas id="audioVisualizerMini" width="60" height="28" class="voice-mini-canvas"></canvas>
       <span class="voice-mini-text" id="voiceMiniText">Listening...</span>
       <button class="voice-mini-btn" onclick="event.stopPropagation(); cancelVoiceRecording();" title="Cancel">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
@@ -480,9 +496,20 @@
       <div class="btn-circle" id="micBtn" onclick="toggleVoice()">
         <svg class="icon-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"></path><path d="M19 10v2a7 7 0 0 1-14 0v-2"></path><line x1="12" y1="19" x2="12" y2="23"></line><line x1="8" y1="23" x2="16" y2="23"></line></svg>
       </div>
+      <div class="btn-circle" id="liveModeBtn" onclick="openLiveMode()" title="Live">
+        <svg class="icon-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M8 5v14l11-7z" fill="currentColor" stroke="none"></path><circle cx="12" cy="12" r="10"></circle></svg>
+      </div>
       <button class="modes-btn" id="modeBtn" onclick="openModes()">Ultra Fast</button>
     </div>
   </div>
+</div>
+
+<div id="liveModeOverlay" class="live-mode-overlay">
+  <button class="live-close-btn" onclick="closeLiveMode()" title="Close">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+  </button>
+  <p class="live-status-text" id="liveStatusText">Live</p>
+  <canvas id="liveLiquidCanvas" width="150" height="150"></canvas>
 </div>
 
 <div id="settingsOverlay" onclick="closeSettings()"></div>
@@ -1302,6 +1329,8 @@ function clearAttachment() { pendingFile = null; document.getElementById("filePr
 let mediaRecorder; let audioChunks = []; let audioCtx, analyser, dataArray; let visualizerAnimationId; let cancelTranscription = false; 
 let visualizerCanvas = null;
 let canvasCtx = null;
+let miniCanvas = null;
+let miniCanvasCtx = null;
 function getVisualizerCanvas() {
   if (!visualizerCanvas) {
     visualizerCanvas = document.getElementById("audioVisualizer");
@@ -1310,6 +1339,10 @@ function getVisualizerCanvas() {
       return null;
     }
     canvasCtx = visualizerCanvas.getContext("2d");
+  }
+  if (!miniCanvas) {
+    miniCanvas = document.getElementById("audioVisualizerMini");
+    if (miniCanvas) miniCanvasCtx = miniCanvas.getContext("2d");
   }
   return visualizerCanvas;
 }
@@ -1345,7 +1378,10 @@ async function toggleVoice() {
     source.connect(analyser); analyser.fftSize = 256;
     dataArray = new Uint8Array(analyser.frequencyBinCount);
 
-    voiceOverlay.style.display = "flex";
+    // Minimized pill is the default listening view; full overlay opens only when
+    // the user taps the pill (see expandVoiceRecording()).
+    document.getElementById("voiceMiniText").textContent = "Listening...";
+    document.getElementById("voiceMiniBar").classList.add("active");
     document.getElementById("voiceStatusText").textContent = "Listening...";
     micBtn.classList.add("listening"); drawVisualizer();
 
@@ -1467,6 +1503,50 @@ function expandVoiceRecording() {
   document.getElementById("voiceOverlay").style.display = "flex";
 }
 
+// ===== AI Live Mode (placeholder shell — behavior to be added later) =====
+// Currently just shows the overlay with the liquid-fill animation looping on
+// its own timer (not yet wired to the mic or a live conversation backend).
+let liveModeAnimId = null;
+let liveT = 0;
+function openLiveMode() {
+  document.getElementById("liveModeOverlay").classList.add("active");
+  document.getElementById("liveStatusText").textContent = "Live";
+  drawLiveLiquid();
+}
+function closeLiveMode() {
+  document.getElementById("liveModeOverlay").classList.remove("active");
+  if (liveModeAnimId) cancelAnimationFrame(liveModeAnimId);
+}
+function drawLiveLiquid() {
+  const canvas = document.getElementById("liveLiquidCanvas");
+  if (!canvas) return;
+  const ctx = canvas.getContext("2d");
+  liveT += 0.06;
+  const w = canvas.width, h = canvas.height, cx = w / 2, cy = h / 2, r = 62;
+  ctx.clearRect(0, 0, w, h);
+  ctx.beginPath();
+  ctx.arc(cx, cy, r, 0, Math.PI * 2);
+  ctx.strokeStyle = "rgba(255,255,255,0.25)";
+  ctx.lineWidth = 2;
+  ctx.stroke();
+  ctx.save();
+  ctx.beginPath();
+  ctx.arc(cx, cy, r - 3, 0, Math.PI * 2);
+  ctx.clip();
+  const level = h - (0.45 + Math.sin(liveT * 0.7) * 0.1) * h;
+  ctx.beginPath();
+  ctx.moveTo(0, level);
+  for (let x = 0; x <= w; x += 4) {
+    const y = level + Math.sin(x * 0.11 + liveT * 2.4) * 8;
+    ctx.lineTo(x, y);
+  }
+  ctx.lineTo(w, h); ctx.lineTo(0, h); ctx.closePath();
+  ctx.fillStyle = "rgba(255,255,255,0.88)";
+  ctx.fill();
+  ctx.restore();
+  liveModeAnimId = requestAnimationFrame(drawLiveLiquid);
+}
+
 let wavePhase = 0;
 function drawVisualizer() {
   if (!audioCtx) return;
@@ -1507,6 +1587,27 @@ function drawVisualizer() {
     canvasCtx.lineJoin = 'round';
     canvasCtx.stroke();
   });
+
+  // Simplified single-line waveform in the minimized pill, driven by the same
+  // analyser data so it stays in sync whether the user is looking at the full
+  // overlay or the mini bar.
+  if (miniCanvas && miniCanvasCtx) {
+    const mw = miniCanvas.width, mh = miniCanvas.height, mMid = mh / 2;
+    miniCanvasCtx.clearRect(0, 0, mw, mh);
+    miniCanvasCtx.beginPath();
+    const miniBaseAmp = 3 + avgAmp * (mh / 2 - 3);
+    for (let x = 0; x <= mw; x += 2) {
+      const binIndex = Math.floor((x / mw) * (analyser.frequencyBinCount * 0.5));
+      const localAmp = (dataArray[binIndex] / 255);
+      const y = mMid + Math.sin(x * 0.28 + wavePhase * 1.1) * (miniBaseAmp * (0.4 + localAmp * 0.8));
+      if (x === 0) miniCanvasCtx.moveTo(x, y); else miniCanvasCtx.lineTo(x, y);
+    }
+    miniCanvasCtx.strokeStyle = '#ffffff';
+    miniCanvasCtx.lineWidth = 2;
+    miniCanvasCtx.lineCap = 'round';
+    miniCanvasCtx.lineJoin = 'round';
+    miniCanvasCtx.stroke();
+  }
 }
 
 function save() { 
