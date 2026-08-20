@@ -58,11 +58,6 @@
         "@type": "WebPage",
         "name": "AI Image Generation",
         "url": "https://expoloomai.pages.dev/#image-generation"
-      },
-      {
-        "@type": "WebPage",
-        "name": "Deep Thinking AI",
-        "url": "https://expoloomai.pages.dev/#deep-thinking"
       }
     ]
   }
@@ -375,7 +370,6 @@
 <div id="optionsSheet" class="options-sheet">
   <div class="sheet-handle-area" id="optionsHandle"><div class="sheet-handle"></div></div>
   <div class="mode-option" onclick="setSpecialOption('image_gen')"><div><b>Image Generation</b><br><small style="opacity:0.6;">Create visual assets</small></div><div class="check-mark">✓</div></div>
-  <div class="mode-option" onclick="setSpecialOption('deep_thinking')"><div><b>Deep Thinking</b><br><small style="opacity:0.6;">Advanced problem solving</small></div><div class="check-mark">✓</div></div>
 </div>
 
 <div id="chatActionOverlay" onclick="closeChatActionSheet()"></div>
@@ -589,25 +583,6 @@
     </div>
 
     <div class="settings-group">
-      <div class="settings-group-title">Maximum Potential</div>
-      <div class="settings-card">
-        <div class="settings-row">
-          <div class="settings-row-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2 3 14h7l-1 8 10-12h-7z"/></svg></div>
-          <div class="settings-row-text">
-            <div class="settings-row-label">Ultra Power Deep Thinking</div>
-            <div class="settings-row-desc">Maximum reasoning depth, higher usage</div>
-          </div>
-          <div class="settings-row-action">
-            <label class="settings-toggle">
-              <input type="checkbox" id="ultraPowerCheckbox" onchange="handleUltraPowerToggle()">
-              <span class="settings-toggle-track"></span>
-            </label>
-          </div>
-        </div>
-      </div>
-    </div>
-
-    <div class="settings-group">
       <div class="settings-group-title">Chat &amp; Data</div>
       <div class="settings-card">
         <div class="settings-row" onclick="exportAllChats()" style="cursor:pointer;">
@@ -665,17 +640,6 @@
   </div>
 </div>
 
-<div id="ultraPowerOverlay" style="position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); display: none; z-index: 1100; align-items: center; justify-content: center;">
-  <div style="background: var(--bg-main); color: var(--text-color); padding: 24px; border-radius: 16px; width: 85%; max-width: 340px; text-align: center;">
-    <p style="font-weight: 700; font-size: 16px; margin: 0 0 8px;">Switch to Ultra Power Deep Thinking?</p>
-    <p style="font-size: 13.5px; opacity: 0.7; margin: 0 0 20px;">This will convert Your Normal Conversion Web into Ultra Power Deep Thinking and usage so much limit</p>
-    <div style="display:flex; gap:10px;">
-      <button onclick="declineUltraPower()" style="flex:1; padding:10px; border-radius:8px; border:none; background: var(--chip-bg); color: var(--text-color); font-weight:600; cursor:pointer;">No</button>
-      <button onclick="confirmUltraPower()" style="flex:1; padding:10px; border-radius:8px; border:none; background: var(--accent-blue); color: var(--btn-text); font-weight:600; cursor:pointer;">Yes</button>
-    </div>
-  </div>
-</div>
-
 <script>
 // --- AUTHENTICATION LOGIC ---
 
@@ -714,12 +678,6 @@ function applyUserData(user) {
 
     currentUserEmail = user.email;
 
-    // Check the user's saved Ultra Power Deep Thinking preference (UPDT: "T"/"F").
-    // If they last left the app in Ultra Power mode, send them straight back to
-    // it on login instead of showing the normal app first. Checked in the
-    // background so it doesn't block the rest of initialization if it's slow.
-    checkUpdtAndRedirect();
-
     chats = JSON.parse(localStorage.getItem("chats_" + currentUserEmail)) || {};
     
     for (let id in chats) {
@@ -748,28 +706,6 @@ function applyUserData(user) {
     // Flush any messages that were queued while offline in a previous session
     // (e.g. the app was closed before connectivity returned).
     if (navigator.onLine) processOfflineQueue();
-}
-
-// Reads the UPDT flag from the server (falling back to a cached local copy if
-// offline) and redirects to the Ultra Power page if it's "T". A local cache is
-// kept in localStorage so the redirect can happen instantly on repeat visits
-// without waiting on a network round-trip every single time.
-async function checkUpdtAndRedirect() {
-  const cached = localStorage.getItem("updt_" + currentUserEmail);
-  if (cached === "T") { window.location.href = "/Ultra-Power-Deep-Thinking"; return; }
-
-  try {
-    const token = localStorage.getItem("sb_access_token") || "";
-    if (!token) return;
-    const res = await fetch("/api/preferences", { headers: { "Authorization": `Bearer ${token}` } });
-    if (!res.ok) return;
-    const data = await res.json();
-    localStorage.setItem("updt_" + currentUserEmail, data.updt || "F");
-    if (data.updt === "T") window.location.href = "/Ultra-Power-Deep-Thinking";
-  } catch (e) {
-    // Network error or offline: fall back silently to whatever's cached (already
-    // checked above), or just stay on the normal app if there's no cache yet.
-  }
 }
 
 function signOutGoogle() {
@@ -1240,48 +1176,6 @@ async function confirmClearAllChats() {
   }
 }
 
-// Ultra Power Deep Thinking: a toggle that, when switched on, asks the user to
-// confirm before redirecting to the dedicated Ultra Power page (a separate
-// static page/deployment, not a mode switch within this same page).
-function handleUltraPowerToggle() {
-  const checkbox = document.getElementById("ultraPowerCheckbox");
-  if (checkbox.checked) {
-    document.getElementById("ultraPowerOverlay").style.display = "flex";
-  }
-  // If unchecked, there's nothing to confirm -- staying on the normal site is a no-op.
-}
-
-function declineUltraPower() {
-  document.getElementById("ultraPowerCheckbox").checked = false;
-  document.getElementById("ultraPowerOverlay").style.display = "none";
-}
-
-async function confirmUltraPower() {
-  document.getElementById("ultraPowerOverlay").style.display = "none";
-  await setUpdtPreference("T");
-  window.location.href = "/Ultra-Power-Deep-Thinking";
-}
-
-// Saves the UPDT preference both locally (for instant redirects on future
-// visits without waiting on the network) and on the server via /api/preferences
-// (so the preference follows the user across devices/reinstalls).
-async function setUpdtPreference(value) {
-  if (currentUserEmail) localStorage.setItem("updt_" + currentUserEmail, value);
-  try {
-    const token = localStorage.getItem("sb_access_token") || "";
-    if (!token) return;
-    await fetch("/api/preferences", {
-      method: "POST",
-      headers: { "Content-Type": "application/json", "Authorization": `Bearer ${token}` },
-      body: JSON.stringify({ updt: value })
-    });
-  } catch (e) {
-    // If this fails (offline, etc.), the local cache above still ensures the
-    // correct behavior on this device; it'll sync to the server next time
-    // there's a successful connection and the user toggles the setting again.
-  }
-}
-
 function openChatActionSheet() { 
   const pinText = document.getElementById("actionSheetPinText");
   if (currentChat && chats[currentChat] && chats[currentChat].pinned) pinText.innerText = "Remove Pin";
@@ -1302,9 +1196,7 @@ function updateOptionUI() {
   const iconContainer = document.getElementById("chipIconContainer");
   if (activeSpecial) {
     standardBtn.style.display = "none"; chip.classList.add("active");
-    iconContainer.innerHTML = (activeSpecial === 'deep_thinking') ? 
-      `<svg class="chip-icon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"></circle><path d="M12 16v-4M12 8h.01" stroke-linecap="round"/></svg>` :
-      `<svg class="chip-icon" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>`;
+    iconContainer.innerHTML = `<svg class="chip-icon" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>`;
   } else { standardBtn.style.display = "flex"; chip.classList.remove("active"); }
 }
 
@@ -1832,10 +1724,6 @@ function renderMessages() {
         <a href="#image-generation" class="quick-action-btn" onclick="setSpecialOption('image_gen'); document.getElementById('input').focus(); return false;">
           <svg class="qa-icon" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect><circle cx="8.5" cy="8.5" r="1.5"></circle><polyline points="21 15 16 10 5 21"></polyline></svg>
           <span>Image Generation</span>
-        </a>
-        <a href="#deep-thinking" class="quick-action-btn" onclick="setSpecialOption('deep_thinking'); document.getElementById('input').focus(); return false;">
-          <svg class="qa-icon" viewBox="0 0 24 24"><path d="M9.59 4.59A2 2 0 1 1 11 8H2m10.59 11.41A2 2 0 1 0 14 16H2m15.73-8.27A2.5 2.5 0 1 1 19.5 12H2"></path></svg>
-          <span>Deep Thinking</span>
         </a>
       </div>
     </div>
